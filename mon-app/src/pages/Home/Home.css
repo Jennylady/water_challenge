@@ -1,0 +1,154 @@
+/* .home {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Section titles 
+.home__section-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.home__section-sub {
+  font-size: 15px;
+  color: var(--gray-text);
+}
+
+/* Daily challenge 
+.home__daily {
+  padding: 60px 0;
+  background: var(--white);
+}
+
+.home__daily-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.home__daily-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.home__daily-countdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--blue-light);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.home__daily-countdown-icon {
+  font-size: 24px;
+}
+
+.home__daily-countdown-val {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--blue-royal);
+  line-height: 1;
+}
+
+.home__daily-countdown-label {
+  font-size: 11px;
+  color: var(--gray-text);
+  margin-top: 2px;
+}
+
+.home__daily-card {
+  padding-top: 12px;
+}
+
+/* Missions section 
+.home__missions {
+  padding: 60px 0;
+  background: var(--gray-soft);
+}
+
+.home__missions-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.home__missions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.home__missions-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.home__filter-btn {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--white);
+  border: 1.5px solid var(--gray-mid);
+  color: var(--text-body);
+  transition: var(--transition);
+}
+
+.home__filter-btn:hover {
+  border-color: var(--blue-royal);
+  color: var(--blue-royal);
+}
+
+.home__filter-btn--active {
+  background: var(--blue-royal);
+  color: var(--white);
+  border-color: var(--blue-royal);
+}
+
+.home__missions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+
+@media (max-width: 900px) {
+  .home__missions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 580px) {
+  .home__missions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home__missions-header {
+    flex-direction: column;
+  }
+
+  .home__daily-header {
+    flex-direction: column;
+  }
+
+  .home__daily-countdown {
+    width: 100%;
+  }
+} 
+*/

@@ -1,0 +1,157 @@
+.missions-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Hero */
+.missions-page__hero {
+  background: linear-gradient(145deg, var(--blue-deeper) 0%, var(--blue-royal) 100%);
+  padding: calc(var(--navbar-height) + 48px) 24px 48px;
+}
+
+.missions-page__hero-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+  animation: fadeInUp 0.5s ease both;
+}
+
+.missions-page__hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 52px);
+  color: var(--white);
+  margin-bottom: 14px;
+}
+
+.missions-page__hero-sub {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 36px;
+}
+
+.missions-page__hero-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  padding: 14px 32px;
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.missions-page__hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.missions-page__hero-stat-val {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--white);
+  line-height: 1;
+}
+
+.missions-page__hero-stat-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.missions-page__hero-stat-div {
+  width: 1px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Content */
+.missions-page__content {
+  flex: 1;
+  padding: 48px 0;
+  background: var(--gray-soft);
+}
+
+.missions-page__content-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Filters */
+.missions-page__filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.missions-page__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--white);
+  border: 1.5px solid var(--gray-mid);
+  color: var(--text-body);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.missions-page__filter:hover {
+  border-color: var(--blue-royal);
+  color: var(--blue-royal);
+}
+
+.missions-page__filter--active {
+  background: var(--blue-royal);
+  color: var(--white);
+  border-color: var(--blue-royal);
+  box-shadow: var(--shadow-sm);
+}
+
+.missions-page__filter-count {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.missions-page__filter:not(.missions-page__filter--active) .missions-page__filter-count {
+  background: var(--gray-mid);
+  color: var(--gray-text);
+}
+
+/* Grid */
+.missions-page__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .missions-page__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 580px) {
+  .missions-page__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .missions-page__hero-stats {
+    gap: 14px;
+    padding: 12px 20px;
+  }
+}
