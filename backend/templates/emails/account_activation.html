@@ -1,38 +1,114 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Activation du compte</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light" />
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no" />
+<title>Activation du compte</title>
+<style>
+  body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  table, td { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+  img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
+  body { margin:0; padding:0; width:100% !important; height:100% !important; }
+  a { text-decoration:none; }
+  .wa-btn:hover { background:#0b565c !important; }
+  @media (max-width:600px) {
+    .wa-container { width:100% !important; }
+    .wa-px { padding-left:24px !important; padding-right:24px !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#eef6ff;font-family:Arial,Helvetica,sans-serif;color:#101828;">
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#eef6ff;padding:32px 12px;">
+<body style="margin:0;padding:0;background:#f2f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#101828;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">Confirmez votre adresse email pour activer votre compte Water Ambassador.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f6;">
     <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 38px rgba(16,71,128,0.12);">
+      <td align="center" style="padding:48px 14px;">
+        <table role="presentation" class="wa-container" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Liseré de marque -->
+          <tr><td style="height:3px;line-height:3px;font-size:0;background:#0f6e76;border-radius:3px 3px 0 0;">&nbsp;</td></tr>
+
           <tr>
-            <td style="background:linear-gradient(135deg,#126bff,#0758df);padding:34px 32px;color:#ffffff;text-align:center;">
-              <div style="display:inline-block;width:62px;height:62px;line-height:62px;border-radius:18px;background:rgba(255,255,255,0.16);font-size:34px;font-weight:900;margin-bottom:14px;">W</div>
-              <h1 style="margin:0;font-size:28px;line-height:1.2;font-weight:900;">Bienvenue sur Water Ambassador</h1>
-              <p style="margin:10px 0 0 0;font-size:15px;opacity:0.92;">Confirmez votre email pour activer votre compte.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:34px 32px;">
-              <h2 style="margin:0 0 14px 0;color:#101828;font-size:22px;">Bonjour {{ first_name|default:'Ambassadeur' }} 👋</h2>
-              <p style="margin:0 0 16px 0;color:#475467;font-size:15px;line-height:1.7;">Merci pour votre inscription. Pour sécuriser votre compte et accéder à la plateforme, veuillez confirmer votre adresse email.</p>
-              <div style="text-align:center;margin:30px 0;">
-                <a href="{{ activation_link }}" style="display:inline-block;background:#126bff;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:14px 26px;border-radius:10px;box-shadow:0 12px 28px rgba(18,107,255,0.25);">Confirmer mon email</a>
-              </div>
-              <p style="margin:0 0 10px 0;color:#667085;font-size:13px;line-height:1.6;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
-              <p style="word-break:break-all;background:#f8fbff;border:1px solid #dbeafe;border-radius:10px;padding:12px;color:#126bff;font-size:13px;line-height:1.5;">{{ activation_link }}</p>
-              <div style="margin-top:24px;padding:14px 16px;border-left:4px solid #f4b928;background:#fffbeb;border-radius:10px;color:#7a4b00;font-size:13px;line-height:1.6;">Si vous n’êtes pas à l’origine de cette inscription, ignorez simplement cet email.</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:22px 32px;background:#f8fbff;text-align:center;color:#7a8495;font-size:12px;line-height:1.6;border-top:1px solid #dbeafe;">
-              © {{ current_year }} Water Ambassador. Tous droits réservés.<br />
-              {% if support_email %}Support : {{ support_email }}{% endif %}
+            <td style="background:#ffffff;border:1px solid #e3e7ea;border-top:none;border-radius:0 0 12px 12px;">
+
+              <!-- Bandeau logo -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="wa-px" style="padding:26px 40px;border-bottom:1px solid #eceff2;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="26" style="width:26px;height:26px;background:#101828;border-radius:6px;text-align:center;vertical-align:middle;color:#ffffff;font-size:13px;font-weight:700;line-height:26px;">W</td>
+                        <td style="padding-left:10px;font-size:13px;font-weight:700;letter-spacing:0.5px;color:#101828;">WATER AMBASSADOR</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Contenu -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="wa-px" style="padding:36px 40px 4px 40px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align:middle;padding-right:8px;">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="3" y="5" width="18" height="14" rx="2" stroke="#0f6e76" stroke-width="1.6"/>
+                            <path d="M3 7l9 6 9-6" stroke="#0f6e76" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </td>
+                        <td style="font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#0f6e76;vertical-align:middle;">Activation de compte</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wa-px" style="padding:14px 40px 0 40px;">
+                    <h1 style="margin:0 0 16px 0;font-size:21px;line-height:1.35;font-weight:700;color:#101828;">Bonjour {{ first_name|default:'Ambassadeur' }}, confirmez votre adresse email</h1>
+                    <p style="margin:0 0 28px 0;color:#5b6472;font-size:14.5px;line-height:1.7;">Merci pour votre inscription. Pour sécuriser votre compte et accéder à la plateforme, veuillez confirmer votre adresse email.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wa-px" style="padding:0 40px 28px 40px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td bgcolor="#0f6e76" style="border-radius:8px;">
+                          <a href="{{ activation_link }}" class="wa-btn" style="display:inline-block;padding:12px 26px;font-size:14px;font-weight:600;color:#ffffff;background:#0f6e76;border-radius:8px;">Confirmer mon email</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wa-px" style="padding:0 40px 8px 40px;">
+                    <p style="margin:0 0 8px 0;color:#8a93a6;font-size:12.5px;line-height:1.6;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
+                    <p style="word-break:break-all;background:#f7f9fa;border:1px solid #e3e7ea;border-radius:8px;padding:11px 13px;color:#0f6e76;font-size:12.5px;line-height:1.5;margin:0;">{{ activation_link }}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wa-px" style="padding:22px 40px 34px 40px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff8e8;border-radius:8px;">
+                      <tr>
+                        <td style="padding:13px 15px;border-left:3px solid #d3a12a;color:#8a5b00;font-size:12.5px;line-height:1.6;">Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement cet email.</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Pied de page -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="wa-px" style="padding:20px 40px;border-top:1px solid #eceff2;text-align:center;color:#8a93a6;font-size:12px;line-height:1.7;">
+                    © {{ current_year }} Water Ambassador. Tous droits réservés.<br />
+                    {% if support_email %}Support : {{ support_email }}{% endif %}
+                  </td>
+                </tr>
+              </table>
+
             </td>
           </tr>
         </table>
