@@ -130,6 +130,7 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'statics')]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+HANDLER404 = 'config.views.custom_404'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 BASE_URL = os.getenv('BASE_URL', f'http://{IP_ADDR}:{PORT}')

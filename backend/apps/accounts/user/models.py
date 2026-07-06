@@ -1,6 +1,7 @@
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.utils import timezone
+from .managers import UserManager
 
 class User(models.Model):
     class Role(models.TextChoices):
@@ -20,6 +21,8 @@ class User(models.Model):
     last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = UserManager()
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)

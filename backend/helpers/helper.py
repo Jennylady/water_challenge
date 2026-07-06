@@ -19,6 +19,20 @@ except Exception:
 
 load_dotenv()
 
+def get_server_settings():
+    ip_addr = '127.0.0.1'
+    port = 8000
+    if 'runserver' in sys.argv:
+        runserver_index = sys.argv.index('runserver')
+        if len(sys.argv) > runserver_index + 1:
+            ip_port = sys.argv[runserver_index + 1]
+            if ':' in ip_port:
+                ip_addr, port = ip_port.split(':')
+            else:
+                port = ip_port
+    return ip_addr, int(port)
+
+
 def get_token_from_request(request: Request) -> str | None:
     authorization_header = request.headers.get('Authorization')
     if authorization_header and authorization_header.startswith('Bearer '):

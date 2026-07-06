@@ -1,13 +1,15 @@
-from django.shortcuts import render, redirect
-from django.views.decorators.cache import never_cache
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from dotenv import load_dotenv
-import os
 import functools
+import os
+
+from dotenv import load_dotenv
+from django.shortcuts import redirect, render
+from django.views.decorators.cache import never_cache
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 load_dotenv()
+
 
 class HealthCheckAPIView(APIView):
     authentication_classes = []
@@ -19,6 +21,7 @@ class HealthCheckAPIView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 def custom_404(request, exception):
     return render(request, '404.html', status=404)
 
@@ -27,7 +30,16 @@ def swagger_password_protect(view_func):
     @never_cache
     @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        swagger_password = os.getenv('SWAGGER_PASSWORD')
+        swagger_password = os.getenv('SWAGGER_PASSWORD', '').strip()
+
+        if not swagger_password:
+            return render(
+                request,
+                'swagger_login.html',
+                {'error': 'SWAGGER_PASSWORD n’est pas configuré dans le fichier .env.'},
+                status=403,
+            )
+
         if request.session.get('swagger_authenticated', False):
             return view_func(request, *args, **kwargs)
 
@@ -38,7 +50,7 @@ def swagger_password_protect(view_func):
                 request.session.modified = True
                 request.session.set_expiry(3600)
                 return redirect(request.path)
-            return render(request, 'swagger_login.html', {'error': 'Mot de passe incorrect'})
+            return render(request, 'swagger_login.html', {'error': 'Mot de passe incorrect'}, status=403)
 
         return render(request, 'swagger_login.html')
 
