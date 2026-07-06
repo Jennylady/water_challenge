@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Activation du compte</title></head>
+<body style="font-family: Arial, sans-serif; background:#eef6ff; padding:24px;">
+  <div style="max-width:620px;margin:auto;background:#fff;border-radius:14px;padding:28px;box-shadow:0 18px 38px rgba(16,71,128,.1);">
+    <h2 style="color:#101828;">Bienvenue {{ first_name }} 👋</h2>
+    <p>Merci pour votre inscription sur <strong>Water Ambassador</strong>.</p>
+    <p>Pour activer votre compte, cliquez sur le bouton ci-dessous :</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="{{ activation_link }}" style="background:#126bff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">Confirmer mon email</a>
+    </p>
+    <p>Si le bouton ne fonctionne pas, copiez ce lien :</p>
+    <p style="word-break:break-all;color:#126bff;">{{ activation_link }}</p>
+    <p style="color:#7a8495;font-size:13px;">© {{ current_year }} Water Ambassador</p>
+  </div>
+</body>
+</html>
