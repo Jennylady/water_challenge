@@ -21,6 +21,11 @@ SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() == 'true
 LOCAL_APPS = [
     'apps.accounts.admin.apps.AccountsAdminConfig',
     'apps.accounts.user.apps.AccountsUserConfig',
+    'apps.formation.apps.FormationConfig',
+    # 'apps.challenges.apps.ChallengesConfig',
+    # 'apps.communaute.apps.CommunauteConfig',
+    # 'apps.recompenses.apps.RecompensesConfig',
+    # 'apps.notifications.apps.NotificationsConfig',
 ]
 
 THIRD_APPS = [
