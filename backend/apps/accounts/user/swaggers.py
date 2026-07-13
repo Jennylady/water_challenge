@@ -90,6 +90,17 @@ LOGIN_REQUEST_SCHEMA = openapi.Schema(
     },
 )
 
+ACTIVATE_EMAIL_REQUEST_SCHEMA = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['token'],
+    properties={
+        'token': openapi.Schema(
+            type=openapi.TYPE_STRING,
+            description='Jeton unique contenant une payload chiffrée, signée puis rechiffrée.',
+        ),
+    },
+)
+
 EMAIL_REQUEST_SCHEMA = openapi.Schema(
     type=openapi.TYPE_OBJECT,
     required=['email'],
@@ -154,9 +165,14 @@ REGISTER_SWAGGER = swagger_auto_schema(
 )
 
 ACTIVATE_EMAIL_SWAGGER = swagger_auto_schema(
-    operation_summary='Confirmer l’email utilisateur',
-    operation_description='Active le compte utilisateur à partir du uidb64 et du token envoyés par email.',
+    operation_summary='Confirmer l’email utilisateur avec un jeton sécurisé unique',
+    operation_description=(
+        'Vérifie le jeton reçu par email : déchiffrement externe, validation du JWT signé et expirant, '
+        'déchiffrement de la payload interne, puis contrôle du but, du type de compte, de l’utilisateur, '
+        'de l’adresse email et du nonce à usage unique.'
+    ),
     tags=['User - Auth'],
+    request_body=ACTIVATE_EMAIL_REQUEST_SCHEMA,
     responses={
         200: openapi.Response('Email confirmé', openapi.Schema(
             type=openapi.TYPE_OBJECT,

@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.utils import timezone
@@ -18,6 +20,11 @@ class User(models.Model):
     role = models.CharField(max_length=30, choices=Role.choices, default=Role.AMBASSADOR)
     is_active = models.BooleanField(default=True)
     is_email_verified = models.BooleanField(default=False)
+    email_activation_nonce = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Nonce renouvelé à chaque renvoi et après activation afin d'invalider les anciens liens.",
+    )
     last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

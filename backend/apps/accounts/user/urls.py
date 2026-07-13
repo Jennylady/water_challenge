@@ -17,7 +17,7 @@ from .views import (
 
 urlpatterns = [
     path('register/', RegisterAPIView.as_view(), name='user_register'),
-    path('activate/<str:uidb64>/<str:token>/', ActivateEmailAPIView.as_view(), name='user_activate_email'),
+    path('activate/', ActivateEmailAPIView.as_view(), name='user_activate_email'),
     path('resend-confirmation/', ResendConfirmationAPIView.as_view(), name='user_resend_confirmation'),
 
     path('login/', LoginAPIView.as_view(), name='user_login'),

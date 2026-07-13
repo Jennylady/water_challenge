@@ -12,12 +12,56 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 try:
+    from cryptography.fernet import Fernet, InvalidToken as FernetInvalidToken
     from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 except Exception:
     Cipher = algorithms = modes = default_backend = None
+    Fernet = FernetInvalidToken = hashes = HKDF = None
 
 load_dotenv()
+
+
+def _derive_fernet_key(secret: str, context: str) -> bytes:
+    """Dérive une clé Fernet indépendante à partir d'un secret et d'un contexte."""
+    if Fernet is None or HKDF is None or hashes is None:
+        raise RuntimeError('cryptography is not installed')
+    if not isinstance(secret, str) or len(secret) < 32:
+        raise ValueError('Le secret de chiffrement doit contenir au moins 32 caractères.')
+    if not isinstance(context, str) or not context:
+        raise ValueError('Le contexte de chiffrement est requis.')
+
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b'water-ambassadors-secure-token-v1',
+        info=context.encode('utf-8'),
+    )
+    raw_key = hkdf.derive(secret.encode('utf-8'))
+    return b64encode(raw_key).replace(b'+', b'-').replace(b'/', b'_')
+
+
+def encrypt_authenticated(plaintext: str, *, secret: str, context: str) -> str:
+    """Chiffrement authentifié et URL-safe avec IV aléatoire et contrôle d'intégrité."""
+    if not isinstance(plaintext, str):
+        raise TypeError('plaintext doit être une chaîne de caractères.')
+    fernet = Fernet(_derive_fernet_key(secret, context))
+    return fernet.encrypt(plaintext.encode('utf-8')).decode('ascii')
+
+
+def decrypt_authenticated(token: str, *, secret: str, context: str, ttl: int | None = None) -> str:
+    """Déchiffre un token Fernet et rejette toute altération."""
+    if not isinstance(token, str) or not token.strip():
+        raise ValueError('Token chiffré invalide.')
+    fernet = Fernet(_derive_fernet_key(secret, context))
+    try:
+        value = fernet.decrypt(token.strip().encode('ascii'), ttl=ttl)
+    except (FernetInvalidToken, ValueError, UnicodeError) as exc:
+        raise ValueError('Token chiffré invalide ou expiré.') from exc
+    return value.decode('utf-8')
+
 
 def get_server_settings():
     ip_addr = '127.0.0.1'

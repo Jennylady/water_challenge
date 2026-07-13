@@ -89,6 +89,14 @@ class RegisterSerializer(serializers.Serializer):
         return user
 
 
+class ActivateEmailSerializer(serializers.Serializer):
+    token = serializers.CharField(
+        trim_whitespace=True,
+        max_length=8192,
+        help_text='Jeton unique chiffré reçu dans le lien de confirmation.',
+    )
+
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
