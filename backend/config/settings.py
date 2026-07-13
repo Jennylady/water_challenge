@@ -22,7 +22,7 @@ LOCAL_APPS = [
     'apps.accounts.admin.apps.AccountsAdminConfig',
     'apps.accounts.user.apps.AccountsUserConfig',
     'apps.formation.apps.FormationConfig',
-    # 'apps.challenges.apps.ChallengesConfig',
+    'apps.challenges.apps.ChallengesConfig',
     # 'apps.communaute.apps.CommunauteConfig',
     # 'apps.recompenses.apps.RecompensesConfig',
     # 'apps.notifications.apps.NotificationsConfig',
@@ -174,7 +174,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_PRIVATE_NETWORK = True
 CSRF_TRUSTED_ORIGINS = ['http://*', 'https://*']
 
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False').lower() == 'true'

@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.user.urls')),
     
     path('api/formation/', include('apps.formation.urls')),
+    path('api/challenges/', include('apps.challenges.urls')),
 
     path('api/swagger/docs/', protected_swagger, name='schema-swagger-ui'),
     path('api/swagger/redoc/', protected_redoc, name='schema-redoc'),

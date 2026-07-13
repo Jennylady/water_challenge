@@ -4,3 +4,6 @@ from django.apps import AppConfig
 class FormationConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.formation'
+    
+    def ready(self):
+        from . import signals  # noqa: F401
