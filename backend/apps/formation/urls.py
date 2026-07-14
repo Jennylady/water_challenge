@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AjouterIllustrationAdminView,
+    AjouterRessourcesModuleAdminView,
     AjouterQuestionsBanqueAdminView,
     ClassementModuleView,
     CreerModuleAdminView,
@@ -23,6 +24,7 @@ from .views import (
     RepondreQuestionAmbassadeurView,
     SoumettreTentativeQuizAmbassadeurView,
     SupprimerIllustrationAdminView,
+    SupprimerRessourceModuleAdminView,
     SupprimerModuleAdminView,
     SupprimerQuestionAdminView,
     SupprimerQuizAdminView,
@@ -70,6 +72,8 @@ urlpatterns = [
     # Admin - illustrations
     path('admin/modules/<uuid:module_id>/illustrations/', AjouterIllustrationAdminView.as_view(), name='admin-ajouter-illustration'),
     path('admin/illustrations/<uuid:illustration_id>/supprimer/', SupprimerIllustrationAdminView.as_view(), name='admin-supprimer-illustration'),
+    path('admin/modules/<uuid:module_id>/ressources/', AjouterRessourcesModuleAdminView.as_view(), name='admin-ajouter-ressources'),
+    path('admin/ressources/<int:ressource_id>/supprimer/', SupprimerRessourceModuleAdminView.as_view(), name='admin-supprimer-ressource'),
 
     # Admin - quiz et banque de questions
     path('admin/modules/<uuid:module_id>/quiz/creer/', CreerQuizAdminView.as_view(), name='admin-creer-quiz'),

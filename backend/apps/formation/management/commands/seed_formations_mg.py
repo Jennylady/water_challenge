@@ -7,7 +7,7 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from apps.accounts.user.models import User
-from apps.formation.models import Choix, IllustrationModule, Module, Question, Quiz
+from apps.formation.models import (Choix, IllustrationModule, ImageIllustrationModule, Module, Question, Quiz, RessourceModule)
 from apps.notifications.models import Notification
 from apps.notifications.services import notifier
 
@@ -18,11 +18,11 @@ def _media_files(relative_directory, extensions):
     if not directory.is_dir():
         return []
 
-    allowed = {extension.lower() for extension in extensions}
+    allowed = {extension.lower() for extension in extensions} if extensions else None
     return sorted(
         path.relative_to(settings.MEDIA_ROOT).as_posix()
         for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() in allowed
+        if path.is_file() and (allowed is None or path.suffix.lower() in allowed)
     )
 
 
@@ -125,6 +125,10 @@ class Command(BaseCommand):
             "formation/modules/videos",
             {".mp4", ".mkv", ".avi", ".mov", ".webm"},
         )
+        resource_files = _media_files(
+            "formation/modules/ressources",
+            None,
+        )
 
         for index, data in enumerate(MODULES, start=1):
             module, created = Module.objects.update_or_create(
@@ -143,19 +147,37 @@ class Command(BaseCommand):
             )
             module.illustrations.all().delete()
             if illustration_files:
-                count = min(secrets.randbelow(2) + 1, len(illustration_files))
-                selected = secrets.SystemRandom().sample(illustration_files, k=count)
-                IllustrationModule.objects.bulk_create(
-                    [
-                        IllustrationModule(
+                image_count = secrets.randbelow(len(illustration_files) + 1)
+                selected = secrets.SystemRandom().sample(illustration_files, k=image_count)
+                if selected:
+                    block_count = min(len(selected), secrets.randbelow(3) + 1)
+                    groups = [[] for _ in range(block_count)]
+                    for image_index, image_path in enumerate(selected):
+                        groups[image_index % block_count].append(image_path)
+                    for order, group in enumerate(groups, start=1):
+                        illustration = IllustrationModule.objects.create(
                             module=module,
-                            image=image_path,
-                            legende=f"Sary fanazavana — {module.titre}",
+                            titre=f"Sary fanazavana {order}",
+                            description=f"Fanazavana an-tsary momba ny lohahevitra: {module.titre}.",
                             ordre=order,
                         )
-                        for order, image_path in enumerate(selected, start=1)
-                    ]
-                )
+                        ImageIllustrationModule.objects.bulk_create([
+                            ImageIllustrationModule(
+                                illustration=illustration,
+                                image=image_path,
+                                ordre=image_order,
+                            )
+                            for image_order, image_path in enumerate(group, start=1)
+                        ])
+
+            module.ressources.all().delete()
+            if resource_files:
+                resource_count = secrets.randbelow(len(resource_files) + 1)
+                selected_resources = secrets.SystemRandom().sample(resource_files, k=resource_count)
+                RessourceModule.objects.bulk_create([
+                    RessourceModule(module=module, fichier=file_path)
+                    for file_path in selected_resources
+                ])
 
             quiz, _ = Quiz.objects.update_or_create(
                 module=module,
