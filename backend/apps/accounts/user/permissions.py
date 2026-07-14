@@ -1,0 +1,45 @@
+from django.contrib.auth.models import AnonymousUser
+from rest_framework.permissions import BasePermission
+from helpers.helper import get_token_from_request, get_user
+
+
+class IsAuthenticatedUser(BasePermission):
+    message = 'Authentification utilisateur requise.'
+
+    def has_permission(self, request, view):
+        token = get_token_from_request(request)
+        if not token:
+            return False
+        user = get_user(token)
+        if user is None or isinstance(user, AnonymousUser) or not user.is_active:
+            return False
+        request.user = user
+        return True
+
+
+class IsValidatorUser(BasePermission):
+    message = 'Accès réservé aux validateurs.'
+
+    def has_permission(self, request, view):
+        token = get_token_from_request(request)
+        if not token:
+            return False
+        user = get_user(token)
+        if user is None or not user.is_active or not user.is_email_verified:
+            return False
+        request.user = user
+        return user.role in ['validator', 'moderator']
+
+
+class IsModeratorUser(BasePermission):
+    message = 'Accès réservé aux modérateurs actifs et vérifiés.'
+
+    def has_permission(self, request, view):
+        token = get_token_from_request(request)
+        if not token:
+            return False
+        user = get_user(token)
+        if user is None or not user.is_active or not user.is_email_verified:
+            return False
+        request.user = user
+        return user.role == 'moderator' or user.role == 'ambassador'
