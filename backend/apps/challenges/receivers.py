@@ -22,18 +22,25 @@ def debloquer_defis_apres_quiz_reussi(sender, instance, created, **kwargs):
     module_id = instance.quiz.module_id
 
     def _executer():
-        from django.contrib.auth import get_user_model
+        from apps.accounts.user.models import User
         from apps.formation.models import Module
         from .services import debloquer_defis_du_module
 
-        utilisateur = get_user_model().objects.filter(pk=utilisateur_id).first()
-        module = Module.objects.filter(pk=module_id).first()
+        utilisateur = User.objects.filter(
+            pk=utilisateur_id
+        ).first()
+
+        module = Module.objects.filter(
+            pk=module_id
+        ).first()
+
         if utilisateur is not None and module is not None:
             try:
                 debloquer_defis_du_module(utilisateur, module)
             except Exception:
                 logger.exception(
-                    "Impossible de débloquer les défis du module %s pour l'utilisateur %s.",
+                    "Impossible de débloquer les défis du module %s "
+                    "pour l'utilisateur %s.",
                     module_id,
                     utilisateur_id,
                 )

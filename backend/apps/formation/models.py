@@ -98,13 +98,13 @@ class IllustrationModule(models.Model):
 
 class ProgressionModule(models.Model):
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='progressions_module'
+        'accounts_user.User', on_delete=models.CASCADE, related_name='progressions_module'
     )
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='progressions')
     est_lu = models.BooleanField(default=False)
     lu_le = models.DateTimeField(blank=True, null=True)
     est_termine = models.BooleanField(
-        default=False, help_text="Terminé = module lu ET quiz réussi"
+        default=False, help_text="Terminé = lecture + quiz réussi + au moins deux défis validés"
     )
     termine_le = models.DateTimeField(blank=True, null=True)
 
@@ -117,6 +117,34 @@ class ProgressionModule(models.Model):
         ]
         verbose_name = 'Progression de module'
         verbose_name_plural = 'Progressions de module'
+
+    @property
+    def quiz_reussi(self):
+        return self.utilisateur.tentatives_quiz.filter(
+            quiz__module=self.module, est_reussi=True
+        ).exists()
+
+    @property
+    def challenges_termines(self):
+        return self.utilisateur.defis_utilisateur.filter(
+            defi__module=self.module, statut='termine'
+        ).count()
+
+    @property
+    def pourcentage(self):
+        lecture = 25 if self.est_lu else 0
+        quiz = 25 if self.quiz_reussi else 0
+        challenges = min(self.challenges_termines, 2) * 25
+        return lecture + quiz + challenges
+
+    def recalculer(self, sauvegarder=True):
+        termine = self.pourcentage >= 100
+        if termine != self.est_termine:
+            self.est_termine = termine
+            self.termine_le = timezone.now() if termine else None
+            if sauvegarder:
+                self.save(update_fields=['est_termine', 'termine_le'])
+        return self.pourcentage
 
     def __str__(self):
         return f'{self.utilisateur} - {self.module.titre}'
@@ -226,7 +254,7 @@ class TentativeQuiz(models.Model):
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tentatives_quiz'
+        'accounts_user.User', on_delete=models.CASCADE, related_name='tentatives_quiz'
     )
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='tentatives')
     questions_tirees = models.ManyToManyField(

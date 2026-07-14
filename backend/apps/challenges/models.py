@@ -103,7 +103,7 @@ class DefiUtilisateur(models.Model):
         TERMINE = 'termine', 'Terminé'
 
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'accounts_user.User',
         on_delete=models.CASCADE,
         related_name='defis_utilisateur',
     )
@@ -138,7 +138,7 @@ class SoumissionActivite(models.Model):
         REFUSEE = 'refusee', 'Refusée'
 
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'accounts_user.User',
         on_delete=models.CASCADE,
         related_name='soumissions_activite',
     )
@@ -203,7 +203,7 @@ class Validation(models.Model):
         SoumissionActivite, on_delete=models.CASCADE, related_name='validation'
     )
     validateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'accounts_user.User',
         on_delete=models.SET_NULL,
         null=True,
         related_name='validations',

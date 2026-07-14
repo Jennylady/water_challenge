@@ -19,7 +19,7 @@ class Notification(models.Model):
         AUTRE = 'autre', 'Autre'
 
     destinataire = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications'
+        'accounts_user.User', on_delete=models.CASCADE, related_name='notifications'
     )
     type = models.CharField(max_length=30, choices=Type.choices, default=Type.AUTRE)
     titre = models.CharField(max_length=200)
@@ -51,7 +51,7 @@ class Annonce(models.Model):
         NIVEAU = 'niveau', 'Un niveau spécifique'
 
     auteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='annonces_creees'
+        'accounts_user.User', on_delete=models.SET_NULL, null=True, related_name='annonces_creees'
     )
     titre = models.CharField(max_length=200)
     contenu = models.TextField()
@@ -76,7 +76,7 @@ class LectureAnnonce(models.Model):
     """Trace la lecture/le vu d'une annonce par un utilisateur (pour ne plus la ré-afficher)."""
 
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='annonces_lues'
+        'accounts_user.User', on_delete=models.CASCADE, related_name='annonces_lues'
     )
     annonce = models.ForeignKey(Annonce, on_delete=models.CASCADE, related_name='lectures')
     lue_le = models.DateTimeField(auto_now_add=True)

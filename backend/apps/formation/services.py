@@ -267,20 +267,12 @@ def soumettre_tentative(*, tentative, utilisateur):
                 utilisateur=utilisateur,
                 module=tentative.quiz.module,
             )
-            if not progression.est_termine:
-                progression.est_termine = True
-                progression.termine_le = timezone.now()
-                progression.save(update_fields=['est_termine', 'termine_le'])
-
-                # Import local pour éviter un couplage au chargement des modèles.
-                from apps.accounts.user.models import Profile
-
-                profile = Profile.objects.select_for_update().filter(
-                    user_id=utilisateur.id
-                ).first()
-                if profile is not None:
-                    profile.points += POINTS_GAMIFICATION_PAR_MODULE_REUSSI
-                    profile.save(update_fields=['points'])
-                    profile.update_level()
+            # Le quiz représente 25 %. Le module n'est terminé qu'après lecture
+            # et validation d'au moins deux défis associés.
+            progression.recalculer()
+            from apps.recompenses.services import synchroniser_progression_module
+            transaction.on_commit(
+                lambda: synchroniser_progression_module(utilisateur, tentative.quiz.module)
+            )
 
         return tentative

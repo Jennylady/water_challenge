@@ -34,6 +34,8 @@ urlpatterns = [
     
     path('api/formation/', include('apps.formation.urls')),
     path('api/challenges/', include('apps.challenges.urls')),
+    path('api/notifications/', include('apps.notifications.urls')),
+    path('api/recompenses/', include('apps.recompenses.urls')),
 
     path('api/swagger/docs/', protected_swagger, name='schema-swagger-ui'),
     path('api/swagger/redoc/', protected_redoc, name='schema-redoc'),

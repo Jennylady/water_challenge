@@ -1,3 +1,6 @@
 from django.contrib import admin
-
-# Register your models here.
+from .models import Badge,BadgeUtilisateur,Certificat,ConfigurationNiveau
+admin.site.register(Badge)
+admin.site.register(BadgeUtilisateur)
+admin.site.register(Certificat)
+admin.site.register(ConfigurationNiveau)

@@ -190,13 +190,14 @@ class ModuleListeSerializer(serializers.ModelSerializer):
     est_lu = serializers.SerializerMethodField()
     est_termine = serializers.SerializerMethodField()
     est_accessible = serializers.BooleanField(read_only=True)
+    progression = serializers.SerializerMethodField()
 
     class Meta:
         model = Module
         fields = [
             'id', 'titre', 'slug', 'resume', 'niveau', 'ordre',
             'image_couverture', 'date_debut', 'date_fin', 'est_accessible',
-            'est_lu', 'est_termine',
+            'est_lu', 'est_termine', 'progression',
         ]
 
     def _progression(self, obj):
@@ -213,6 +214,19 @@ class ModuleListeSerializer(serializers.ModelSerializer):
         progression = self._progression(obj)
         return bool(progression and progression.est_termine)
 
+    def get_progression(self, obj):
+        progression = self._progression(obj)
+        if progression is None:
+            return {'pourcentage': 0, 'lecture': 0, 'quiz': 0, 'challenges': 0, 'challenges_termines': 0}
+        nb = progression.challenges_termines
+        return {
+            'pourcentage': progression.pourcentage,
+            'lecture': 25 if progression.est_lu else 0,
+            'quiz': 25 if progression.quiz_reussi else 0,
+            'challenges': min(nb, 2) * 25,
+            'challenges_termines': nb,
+        }
+
 
 class ModuleDetailSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source='uuid', read_only=True)
@@ -224,6 +238,7 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
     est_termine = serializers.SerializerMethodField()
     quiz_disponible = serializers.SerializerMethodField()
     est_accessible = serializers.BooleanField(read_only=True)
+    progression = serializers.SerializerMethodField()
 
     class Meta:
         model = Module
@@ -231,7 +246,7 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
             'id', 'titre', 'slug', 'contenu', 'resume', 'niveau', 'ordre',
             'video', 'image_couverture', 'illustrations',
             'date_debut', 'date_fin', 'est_accessible',
-            'est_lu', 'lu_le', 'est_termine', 'quiz_disponible',
+            'est_lu', 'lu_le', 'est_termine', 'quiz_disponible', 'progression',
         ]
 
     def _progression(self):
@@ -259,6 +274,13 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
     def get_quiz_disponible(self, obj):
         progression = self._progression()
         return bool(progression and progression.est_lu and hasattr(obj, 'quiz'))
+
+    def get_progression(self, obj):
+        progression = self._progression()
+        if progression is None:
+            return {'pourcentage': 0, 'lecture': 0, 'quiz': 0, 'challenges': 0, 'challenges_termines': 0}
+        nb = progression.challenges_termines
+        return {'pourcentage': progression.pourcentage, 'lecture': 25 if progression.est_lu else 0, 'quiz': 25 if progression.quiz_reussi else 0, 'challenges': min(nb, 2) * 25, 'challenges_termines': nb}
 
 
 class ModuleAdminSerializer(serializers.ModelSerializer):

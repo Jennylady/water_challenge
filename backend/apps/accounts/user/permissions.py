@@ -11,9 +11,7 @@ class IsAuthenticatedUser(BasePermission):
         if not token:
             return False
         user = get_user(token)
-        if user is None or isinstance(user, AnonymousUser):
-            return False
-        if not user.is_active:
+        if user is None or isinstance(user, AnonymousUser) or not user.is_active:
             return False
         request.user = user
         return True
@@ -27,21 +25,21 @@ class IsValidatorUser(BasePermission):
         if not token:
             return False
         user = get_user(token)
-        if user is None or not user.is_active:
+        if user is None or not user.is_active or not user.is_email_verified:
             return False
         request.user = user
         return user.role in ['validator', 'moderator']
 
 
 class IsModeratorUser(BasePermission):
-    message = 'Accès réservé aux modérateurs.'
+    message = 'Accès réservé aux modérateurs actifs et vérifiés.'
 
     def has_permission(self, request, view):
         token = get_token_from_request(request)
         if not token:
             return False
         user = get_user(token)
-        if user is None or not user.is_active:
+        if user is None or not user.is_active or not user.is_email_verified:
             return False
         request.user = user
-        return True
+        return user.role == 'moderator' or user.role == 'ambassador'

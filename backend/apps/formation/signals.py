@@ -57,3 +57,17 @@ def nettoyer_illustration_remplacee(sender, instance, **kwargs):
 @receiver(post_delete, sender=IllustrationModule)
 def nettoyer_illustration_supprimee(sender, instance, **kwargs):
     _programmer_suppression(instance.image)
+
+from django.db.models.signals import post_save
+
+@receiver(post_save, sender=Module)
+def notifier_nouveau_module(sender, instance, created, **kwargs):
+    if not created or not instance.est_publie:
+        return
+    def envoyer():
+        from apps.accounts.user.models import User
+        from apps.notifications.models import Notification
+        from apps.notifications.services import notifier
+        for utilisateur in User.objects.filter(role='moderator', is_active=True, is_email_verified=True):
+            notifier(utilisateur, Notification.Type.NOUVEAU_MODULE, 'Nouveau module disponible', f'Le module « {instance.titre} » est disponible.', f'/formation/modules/{instance.uuid}/')
+    transaction.on_commit(envoyer)

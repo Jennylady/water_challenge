@@ -345,6 +345,15 @@ class DetailModuleAmbassadeurView(APIView):
                 progression.est_lu = True
                 progression.lu_le = timezone.now()
                 progression.save(update_fields=['est_lu', 'lu_le'])
+                from apps.notifications.models import Notification
+                from apps.notifications.services import notifier
+                notifier(
+                    request.user,
+                    Notification.Type.QUIZ_DEBLOQUE,
+                    'Quiz débloqué',
+                    f'Le quiz du module « {module.titre} » est maintenant disponible.',
+                    f'/formation/modules/{module.uuid}/quiz/',
+                )
 
             serializer = ModuleDetailSerializer(
                 module,
@@ -545,12 +554,49 @@ def _construire_classement(quiz):
     ]
 
 
+class MarquerModuleLuView(APIView):
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
+
+    def post(self, request, module_id):
+        module = _module_ambassadeur(module_id)
+        if module is None:
+            return reponse_erreur('Module introuvable.', status.HTTP_404_NOT_FOUND)
+        progression, _ = ProgressionModule.objects.get_or_create(utilisateur=request.user, module=module)
+        if not progression.est_lu:
+            progression.est_lu = True
+            progression.lu_le = timezone.now()
+            progression.save(update_fields=['est_lu', 'lu_le'])
+        progression.recalculer()
+        return reponse_succes('progression', {
+            'module_id': module.uuid,
+            'pourcentage': progression.pourcentage,
+            'lecture': 25,
+            'quiz': 25 if progression.quiz_reussi else 0,
+            'challenges': min(progression.challenges_termines, 2) * 25,
+            'est_termine': progression.est_termine,
+        }, message='Lecture du module enregistrée.')
+
+
+class MaProgressionFormationView(APIView):
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
+
+    def get(self, request):
+        modules = Module.objects.filter(est_publie=True)
+        donnees = ModuleListeSerializer(modules, many=True, context={'request': request, 'utilisateur': request.user}).data
+        total = len(donnees)
+        moyenne = round(sum(item['progression']['pourcentage'] for item in donnees) / total) if total else 0
+        return reponse_succes('progression', {'pourcentage_global': moyenne, 'modules': donnees})
+
+
 # =============================================================================
 # Admin - modules
 # =============================================================================
 
 class ListeModulesAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_liste_modules_admin
     def get(self, request):
@@ -571,7 +617,8 @@ class ListeModulesAdminView(APIView):
 
 
 class CreerModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_creer_module_admin
@@ -610,7 +657,8 @@ class CreerModuleAdminView(APIView):
 
 
 class ModifierModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_modifier_module_admin
@@ -661,7 +709,8 @@ class ModifierModuleAdminView(APIView):
 
 
 class SupprimerModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_supprimer_module_admin
     def delete(self, request, module_id):
@@ -676,7 +725,8 @@ class SupprimerModuleAdminView(APIView):
 
 
 class OuvrirModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_ouvrir_module_admin
     def post(self, request, module_id):
@@ -695,7 +745,8 @@ class OuvrirModuleAdminView(APIView):
 
 
 class FermerModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_fermer_module_admin
     def post(self, request, module_id):
@@ -714,7 +765,8 @@ class FermerModuleAdminView(APIView):
 
 
 class ParticipantsModuleAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_participants_module_admin
     def get(self, request, module_id):
@@ -731,7 +783,8 @@ class ParticipantsModuleAdminView(APIView):
 
 
 class AjouterIllustrationAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_ajouter_illustration_admin
@@ -764,7 +817,8 @@ class AjouterIllustrationAdminView(APIView):
 
 
 class SupprimerIllustrationAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_supprimer_illustration_admin
     def delete(self, request, illustration_id):
@@ -783,7 +837,8 @@ class SupprimerIllustrationAdminView(APIView):
 # =============================================================================
 
 class CreerQuizAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_creer_quiz_admin
@@ -842,7 +897,8 @@ class CreerQuizAdminView(APIView):
 
 
 class DetailQuizAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_detail_quiz_admin
     def get(self, request, quiz_id):
@@ -856,7 +912,8 @@ class DetailQuizAdminView(APIView):
 
 
 class ModifierQuizAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_modifier_quiz_admin
@@ -924,7 +981,8 @@ class ModifierQuizAdminView(APIView):
 
 
 class SupprimerQuizAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_supprimer_quiz_admin
     def delete(self, request, quiz_id):
@@ -939,7 +997,8 @@ class SupprimerQuizAdminView(APIView):
 
 
 class AjouterQuestionsBanqueAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_ajouter_questions_banque_admin
@@ -974,7 +1033,8 @@ class AjouterQuestionsBanqueAdminView(APIView):
 
 
 class ModifierQuestionAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_modifier_question_admin
@@ -999,7 +1059,8 @@ class ModifierQuestionAdminView(APIView):
 
 
 class SupprimerQuestionAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_supprimer_question_admin
     def delete(self, request, question_id):

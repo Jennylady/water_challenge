@@ -24,8 +24,8 @@ LOCAL_APPS = [
     'apps.formation.apps.FormationConfig',
     'apps.challenges.apps.ChallengesConfig',
     # 'apps.communaute.apps.CommunauteConfig',
-    # 'apps.recompenses.apps.RecompensesConfig',
-    # 'apps.notifications.apps.NotificationsConfig',
+    'apps.recompenses.apps.RecompensesConfig',
+    'apps.notifications.apps.NotificationsConfig',
 ]
 
 THIRD_APPS = [
@@ -194,3 +194,6 @@ ACCOUNT_ACTIVATION_AUDIENCE = 'water-ambassadors-email-activation'
 
 ACCOUNT_ACTIVATION_SIGNING_KEY = os.getenv("ACCOUNT_ACTIVATION_SIGNING_KEY")
 ACCOUNT_ACTIVATION_ENCRYPTION_SECRET = os.getenv("ACCOUNT_ACTIVATION_ENCRYPTION_SECRET")
+
+CHALLENGES_NOTIFICATION_HANDLER = 'apps.notifications.services.notification_challenge_handler'
+CHALLENGES_REWARD_HANDLER = 'apps.recompenses.services.reward_challenge_handler'

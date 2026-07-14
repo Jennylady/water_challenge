@@ -367,7 +367,8 @@ class MesStatistiquesDefisView(APIView):
 # =============================================================================
 
 class ListeDefisAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_admin_liste_defis
     def get(self, request):
@@ -405,7 +406,8 @@ class ListeDefisAdminView(APIView):
 
 
 class CreerDefiAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_creer_defi
@@ -464,7 +466,8 @@ class CreerDefiAdminView(APIView):
 
 
 class ModifierDefiAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_modifier_defi
@@ -534,7 +537,8 @@ class ModifierDefiAdminView(APIView):
 
 
 class SupprimerDefiAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_supprimer_defi
     def delete(self, request, defi_id):
@@ -549,7 +553,8 @@ class SupprimerDefiAdminView(APIView):
 
 
 class OuvrirDefiAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_ouvrir_defi
     def post(self, request, defi_id):
@@ -566,7 +571,8 @@ class OuvrirDefiAdminView(APIView):
 
 
 class FermerDefiAdminView(APIView):
-    permission_classes = [IsAuthenticated, IsModeratorUser]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_fermer_defi
     def post(self, request, defi_id):

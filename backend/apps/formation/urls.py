@@ -12,6 +12,8 @@ from .views import (
     HistoriqueTentativesAmbassadeurView,
     ListeModulesAdminView,
     ListeModulesAmbassadeurView,
+    MarquerModuleLuView,
+    MaProgressionFormationView,
     ModifierModuleAdminView,
     ModifierQuestionAdminView,
     ModifierQuizAdminView,
@@ -31,7 +33,9 @@ app_name = 'formation'
 urlpatterns = [
     # Ambassadeur
     path('modules/', ListeModulesAmbassadeurView.as_view(), name='liste-modules'),
+    path('progression/', MaProgressionFormationView.as_view(), name='ma-progression'),
     path('modules/<uuid:module_id>/', DetailModuleAmbassadeurView.as_view(), name='detail-module'),
+    path('modules/<uuid:module_id>/lire/', MarquerModuleLuView.as_view(), name='marquer-module-lu'),
     path('modules/<uuid:module_id>/quiz/', QuizModuleAmbassadeurView.as_view(), name='quiz-module'),
     path(
         'quiz/tentatives/<uuid:tentative_id>/questions/<uuid:question_id>/reponse/',

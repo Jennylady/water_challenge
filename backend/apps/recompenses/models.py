@@ -1,64 +1,52 @@
 from django.db import models
-from django.conf import settings
+
+
+class ConfigurationNiveau(models.Model):
+    modules_pour_apprenti = models.PositiveIntegerField(default=2)
+    modules_pour_actif = models.PositiveIntegerField(default=5)
+    modules_pour_leader = models.PositiveIntegerField(default=8)
+    modifie_le = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table='recompenses_configuration_niveau'
+        verbose_name='Configuration des niveaux'
+
+    def save(self,*args,**kwargs):
+        self.pk=1
+        super().save(*args,**kwargs)
+
+    @classmethod
+    def charger(cls):
+        obj,_=cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class Badge(models.Model):
-    """Badge débloqué selon les réalisations (points ou nombre de défis complétés)."""
-
-    nom = models.CharField(max_length=150)
-    description = models.TextField()
-    icone = models.ImageField(upload_to='recompenses/badges/')
-    points_requis = models.PositiveIntegerField(blank=True, null=True)
-    defis_requis = models.PositiveIntegerField(
-        blank=True, null=True, help_text="Nombre de défis validés requis"
-    )
-    cree_le = models.DateTimeField(auto_now_add=True)
-
+    nom=models.CharField(max_length=150, unique=True)
+    description=models.TextField()
+    icone=models.ImageField(upload_to='recompenses/badges/', blank=True, null=True)
+    cree_le=models.DateTimeField(auto_now_add=True)
     class Meta:
-        db_table = 'recompenses_badge'
-        verbose_name = 'Badge'
-        verbose_name_plural = 'Badges'
-
-    def __str__(self):
-        return self.nom
+        db_table='recompenses_badge'
+    def __str__(self): return self.nom
 
 
 class BadgeUtilisateur(models.Model):
-    """Badge effectivement obtenu par un utilisateur."""
-
-    utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='badges'
-    )
-    badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name='badges_utilisateur')
-    obtenu_le = models.DateTimeField(auto_now_add=True)
-
+    utilisateur=models.ForeignKey('accounts_user.User',on_delete=models.CASCADE,related_name='badges')
+    badge=models.ForeignKey(Badge,on_delete=models.CASCADE,related_name='attributions')
+    module=models.ForeignKey('formation.Module',on_delete=models.CASCADE,related_name='badges_attribues')
+    obtenu_le=models.DateTimeField(auto_now_add=True)
     class Meta:
-        db_table = 'recompenses_badge_utilisateur'
-        unique_together = ('utilisateur', 'badge')
-        ordering = ['-obtenu_le']
-        verbose_name = 'Badge utilisateur'
-        verbose_name_plural = 'Badges utilisateur'
-
-    def __str__(self):
-        return f'{self.utilisateur} - {self.badge.nom}'
+        db_table='recompenses_badge_utilisateur'
+        constraints=[models.UniqueConstraint(fields=['utilisateur','module'],name='unique_badge_par_module_utilisateur')]
 
 
 class Certificat(models.Model):
-    """Certificat officiel délivré à un utilisateur, téléchargeable depuis son profil."""
-
-    utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='certificats'
-    )
-    titre = models.CharField(max_length=200)
-    niveau = models.CharField(max_length=30)
-    fichier = models.FileField(upload_to='recompenses/certificats/')
-    delivre_le = models.DateTimeField(auto_now_add=True)
-
+    utilisateur=models.ForeignKey('accounts_user.User',on_delete=models.CASCADE,related_name='certificats')
+    titre=models.CharField(max_length=200)
+    niveau=models.CharField(max_length=30)
+    fichier=models.FileField(upload_to='recompenses/certificats/',blank=True,null=True)
+    delivre_le=models.DateTimeField(auto_now_add=True)
     class Meta:
-        db_table = 'recompenses_certificat'
-        ordering = ['-delivre_le']
-        verbose_name = 'Certificat'
-        verbose_name_plural = 'Certificats'
-
-    def __str__(self):
-        return f'{self.utilisateur} - {self.titre}'
+        db_table='recompenses_certificat'
+        constraints=[models.UniqueConstraint(fields=['utilisateur','niveau'],name='unique_certificat_niveau_utilisateur')]

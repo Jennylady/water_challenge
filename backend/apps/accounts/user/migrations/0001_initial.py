@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('expires_at', models.DateTimeField()),
                 ('blacklisted', models.BooleanField(default=False)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='outstanding_tokens', to='accounts_user.user')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='outstanding_tokens', to='accounts_user.User')),
             ],
             options={
                 'db_table': 'account_user_outstanding_token',
@@ -73,7 +73,7 @@ class Migration(migrations.Migration):
                 ('bio', models.TextField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='profile', to='accounts_user.user')),
+                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='profile', to='accounts_user.User')),
             ],
             options={
                 'db_table': 'account_user_profile',
