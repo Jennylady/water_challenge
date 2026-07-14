@@ -1,3 +1,7 @@
+import secrets
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils.text import slugify
@@ -7,6 +11,24 @@ from apps.challenges.models import Defi, DefiUtilisateur
 from apps.formation.models import Module
 from apps.notifications.models import Notification
 from apps.notifications.services import notifier
+
+
+def _challenge_cover_files():
+    """Lit dynamiquement les couvertures réellement présentes dans MEDIA_ROOT."""
+    directory = Path(settings.MEDIA_ROOT) / "challenges/defis/couvertures"
+    if not directory.is_dir():
+        return []
+
+    allowed = {".jpg", ".jpeg", ".png", ".webp"}
+    return sorted(
+        path.relative_to(settings.MEDIA_ROOT).as_posix()
+        for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() in allowed
+    )
+
+
+def _random_cover(files):
+    return secrets.choice(files) if files else None
 
 
 CHALLENGES = {
@@ -46,6 +68,7 @@ class Command(BaseCommand):
             is_active=True,
             is_email_verified=True,
         )
+        cover_files = _challenge_cover_files()
 
         global_order = 1
         for module_slug, challenge_list in CHALLENGES.items():
@@ -69,6 +92,7 @@ class Command(BaseCommand):
                         "nombre_photos_min": 1,
                         "nombre_photos_max": 5,
                         "video_obligatoire": False,
+                        "image_couverture": _random_cover(cover_files),
                         "est_obligatoire": local_order <= 2,
                         "est_actif": True,
                         "est_publie": True,

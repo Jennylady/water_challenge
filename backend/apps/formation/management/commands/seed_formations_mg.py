@@ -1,11 +1,33 @@
+import secrets
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.text import slugify
 
 from apps.accounts.user.models import User
-from apps.formation.models import Choix, Module, Question, Quiz
+from apps.formation.models import Choix, IllustrationModule, Module, Question, Quiz
 from apps.notifications.models import Notification
 from apps.notifications.services import notifier
+
+
+def _media_files(relative_directory, extensions):
+    """Retourne uniquement les fichiers réellement présents dans MEDIA_ROOT."""
+    directory = Path(settings.MEDIA_ROOT) / relative_directory
+    if not directory.is_dir():
+        return []
+
+    allowed = {extension.lower() for extension in extensions}
+    return sorted(
+        path.relative_to(settings.MEDIA_ROOT).as_posix()
+        for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() in allowed
+    )
+
+
+def _random_file(files):
+    return secrets.choice(files) if files else None
 
 
 MODULES = [
@@ -91,6 +113,19 @@ class Command(BaseCommand):
             is_email_verified=True,
         )
 
+        cover_files = _media_files(
+            "formation/modules/couvertures",
+            {".jpg", ".jpeg", ".png", ".webp"},
+        )
+        illustration_files = _media_files(
+            "formation/modules/illustrations",
+            {".jpg", ".jpeg", ".png", ".webp"},
+        )
+        video_files = _media_files(
+            "formation/modules/videos",
+            {".mp4", ".mkv", ".avi", ".mov", ".webm"},
+        )
+
         for index, data in enumerate(MODULES, start=1):
             module, created = Module.objects.update_or_create(
                 slug=slugify(data["titre"]),
@@ -102,8 +137,26 @@ class Command(BaseCommand):
                     "ordre": index,
                     "est_publie": True,
                     "est_ouvert": True,
+                    "image_couverture": _random_file(cover_files),
+                    "video": _random_file(video_files),
                 },
             )
+            module.illustrations.all().delete()
+            if illustration_files:
+                count = min(secrets.randbelow(2) + 1, len(illustration_files))
+                selected = secrets.SystemRandom().sample(illustration_files, k=count)
+                IllustrationModule.objects.bulk_create(
+                    [
+                        IllustrationModule(
+                            module=module,
+                            image=image_path,
+                            legende=f"Sary fanazavana — {module.titre}",
+                            ordre=order,
+                        )
+                        for order, image_path in enumerate(selected, start=1)
+                    ]
+                )
+
             quiz, _ = Quiz.objects.update_or_create(
                 module=module,
                 defaults={
