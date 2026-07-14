@@ -7,25 +7,24 @@ function ConfirmEmailPage({ onNavigate }) {
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('Validation de votre email en cours...')
 
-  const { uid, token } = useMemo(() => {
+  const {token } = useMemo(() => {
     const parts = window.location.pathname.split('/').filter(Boolean)
 
     return {
-      uid: parts[1],
-      token: parts[2],
+      token: parts[1],
     }
   }, [])
 
   useEffect(() => {
     const confirmEmail = async () => {
-      if (!uid || !token) {
+      if (!token) {
         setStatus('error')
         setMessage('Lien de confirmation invalide.')
         return
       }
 
       try {
-        const response = await api.get(`/auth/activate/${uid}/${token}/`)
+        const response = await api.post(`/auth/activate/`, { token })
 
         setStatus('success')
         setMessage(
@@ -45,7 +44,7 @@ function ConfirmEmailPage({ onNavigate }) {
     }
 
     confirmEmail()
-  }, [uid, token])
+  }, [token])
 
   return (
     <div className="confirm-email-page">

@@ -1,0 +1,235 @@
+.help-page {
+  width: 100%;
+  min-width: 0;
+
+  display: grid;
+  gap: 20px;
+}
+
+.help-page__header > p {
+  margin: 0 0 7px;
+
+  color:
+    var(--wc-primary, #126bff);
+
+  font-size: 10px;
+  font-weight: 1000;
+
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.help-page__header h1 {
+  margin: 0 0 10px;
+
+  color:
+    var(--wc-dark, #101828);
+
+  font-size:
+    clamp(29px, 3vw, 39px);
+
+  line-height: 1;
+  font-weight: 1000;
+}
+
+.help-page__header > span {
+  color:
+    var(--wc-muted, #7a8495);
+
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-weight: 800;
+}
+
+.help-page__grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.5fr)
+    minmax(260px, 0.7fr);
+
+  align-items: start;
+  gap: 17px;
+}
+
+.help-page__questions {
+  display: grid;
+  gap: 8px;
+}
+
+.help-page__questions article {
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--wc-border, #dbeafe);
+
+  border-radius: 13px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 11px 25px
+    rgba(16, 71, 128, 0.07);
+}
+
+.help-page__questions
+  article
+  > button {
+  width: 100%;
+  min-height: 55px;
+  padding: 12px 15px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  border: 0;
+
+  background: transparent;
+  color:
+    var(--wc-dark, #101828);
+
+  text-align: left;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 1000;
+
+  cursor: pointer;
+}
+
+.help-page__questions
+  article
+  > button
+  strong {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: #eef6ff;
+  color:
+    var(--wc-primary, #126bff);
+
+  font-size: 16px;
+}
+
+.help-page__questions
+  article
+  > p {
+  margin: 0;
+  padding: 0 15px 15px;
+
+  color:
+    var(--wc-muted, #7a8495);
+
+  font-size: 10.5px;
+  line-height: 1.6;
+  font-weight: 800;
+}
+
+.help-page__questions
+  article.is-open {
+  border-color: #b8d2ff;
+}
+
+.help-page__contact {
+  padding: 22px;
+
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--wc-primary, #126bff),
+      var(--wc-primary-dark, #0758df)
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 17px 36px
+    rgba(18, 107, 255, 0.22);
+}
+
+.help-page__contact > span {
+  font-size: 32px;
+}
+
+.help-page__contact h2 {
+  margin: 0;
+
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 1000;
+}
+
+.help-page__contact p {
+  margin: 0;
+
+  color:
+    rgba(255, 255, 255, 0.84);
+
+  font-size: 10.5px;
+  line-height: 1.55;
+  font-weight: 800;
+}
+
+.help-page__contact a {
+  min-height: 39px;
+  padding: 9px 13px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  background: #ffffff;
+  color:
+    var(--wc-primary, #126bff);
+
+  text-decoration: none;
+
+  font-size: 9.5px;
+  font-weight: 1000;
+}
+
+@media (max-width: 800px) {
+  .help-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .help-page {
+    gap: 14px;
+  }
+
+  .help-page__header h1 {
+    font-size: 26px;
+  }
+
+  .help-page__questions
+    article
+    > button {
+    min-height: 50px;
+    padding: 10px 12px;
+
+    font-size: 9.5px;
+  }
+
+  .help-page__contact {
+    padding: 17px;
+  }
+}

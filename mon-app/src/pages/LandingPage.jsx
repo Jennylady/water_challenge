@@ -70,15 +70,15 @@ function LandingPage({ onNavigate = () => {} }) {
         login: "Hiditra",
       },
       hero: {
-        titleStart: "Ataovy ireo fanamby tsara indrindra mba",
+        titleStart: "Ataovy ireo fanamby mba",
         rotatingWords: [
           "hiarovana ny rano",
           "hitsitsiana rano",
-          "hitahirizana ny rano",
-          "hanomezana lanja ny rano",
+          "hikajiana ny rano",
+          // "hanomezan-danja ny rano",
         ],
         description:
-          "Mandray anjara amin’ny fanamby tsotra sy azo tanterahina mba hianarana mitsitsy rano, hanentanana ny manodidina ary ho Ambasadaoro mpiaro ny Rano.",
+          "Mandraisa anjara amin’ny fanamby tsotra sy azo tanterahina mba hianarana mitsitsy rano, hanentanana ny manodidina ary ho Ambasadaoro mpiaro ny Rano.",
       },
       playCard: {
         levelLabel: "Ambaratonga",

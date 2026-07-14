@@ -1,129 +1,194 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import api from '../api/api'
+import { setCookie, getCookie } from '../utils/cookies'
 import './LoginPage.css'
 
-function LoginPage({ onNavigate }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+const translations = {
+  FR: {
+    title: 'Connexion',
+    subtitle: 'Bienvenue chez Water Challenge',
+    emailLabel: 'Email',
+    emailPlaceholder: 'votre.email@example.com',
+    passwordLabel: 'Mot de passe',
+    passwordPlaceholder: 'Entrez votre mot de passe',
+    loginBtn: 'Se connecter',
+    loadingBtn: 'Connexion...',
+    signupLink: "Pas encore inscrit ? S'inscrire",
+    successMessage: 'Connexion réussie.',
+    errorMessage: 'Email ou mot de passe incorrect.',
+    networkError:
+      'Impossible de contacter le serveur. Vérifiez que Django est lancé.',
+    notActivatedError:
+      "Votre compte n'est pas encore activé. Vérifiez votre email.",
+    invalidResponse:
+      "La réponse du serveur ne contient pas les informations attendues.",
+  },
+
+  MLG: {
+    title: 'Fidirana',
+    subtitle: "Tonga soa amin'ny Water Challenge",
+    emailLabel: 'Email',
+    emailPlaceholder: 'ny.email@example.com',
+    passwordLabel: 'Tenimiafina',
+    passwordPlaceholder: 'Ampidiro ny tenimiafinao',
+    loginBtn: 'Hiditra',
+    loadingBtn: 'Miditra...',
+    signupLink: 'Tsy mbola nisoratra? Hisoratra',
+    successMessage: 'Tafiditra soa aman-tsara.',
+    errorMessage: 'Diso ny email na ny tenimiafina.',
+    networkError:
+      'Tsy afaka mifandray amin’ny serveur. Alefaso aloha Django.',
+    notActivatedError:
+      'Mbola tsy voamarina ny kaontinao. Jereo ny email-nao.',
+    invalidResponse:
+      'Tsy feno ny valin’ny serveur.',
+  },
+}
+
+function LoginPage({ onNavigate, onLogin }) {
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  })
+
   const [language, setLanguage] = useState('FR')
-  const [message, setMessage] = useState({ type: '', text: '' })
+  const [message, setMessage] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const USERS_STORAGE_KEY = 'waterChallengeUsers'
-  const CURRENT_USER_KEY = 'waterChallengeCurrentUser'
+  const t = translations[language]
 
-  const content = {
-    FR: {
-      title: 'Connexion',
-      subtitle: 'Bienvenue chez Water Challenge',
-      emailLabel: 'Email',
-      emailPlaceholder: 'votre.email@example.com',
-      passwordLabel: 'Mot de passe',
-      passwordPlaceholder: 'Entrez votre mot de passe',
-      loginBtn: 'Se connecter',
-      signupLink: "Pas encore inscrit ? S'inscrire",
-      backHome: "Retour à l'accueil",
-      successMessage: 'Connexion réussie.',
-      errorMessage: 'Email ou mot de passe incorrect.',
-      emptyStorageMessage: "Aucun compte n'est encore enregistré. Veuillez d'abord vous inscrire.",
-    },
-    MLG: {
-      title: 'Fidirana',
-      subtitle: "Tonga soa amin'ny Water Challenge",
-      emailLabel: 'Email',
-      emailPlaceholder: 'ny.email@example.com',
-      passwordLabel: 'Tenimiafina',
-      passwordPlaceholder: 'Ampidiro ny tenimiafinao',
-      loginBtn: 'Hiditra',
-      signupLink: 'Tsy mbola nisoratra? Hisoratra',
-      backHome: "Miverina amin'ny pejy fandraisana",
-      successMessage: 'Tafiditra soa aman-tsara.',
-      errorMessage: 'Diso ny email na ny tenimiafina.',
-      emptyStorageMessage: 'Tsy mbola misy kaonty voatahiry. Misorata anarana aloha.',
-    },
+  const handleChange = ({ target }) => {
+    const { name, value } = target
+
+    setForm((previousForm) => ({
+      ...previousForm,
+      [name]: value,
+    }))
+
+    setMessage(null)
   }
 
-  const t = content[language]
+  const getErrorMessage = (error) => {
+    if (!error.response) {
+      return error.message || t.networkError
+    }
 
-  const getSavedUsers = () => {
+    const status = error.response.status
+    const data = error.response.data
+
+    if (typeof data === 'string') {
+      return data
+    }
+
+    if (status === 403) {
+      return data?.detail || data?.message || t.notActivatedError
+    }
+
+    if (status === 400 || status === 401) {
+      return data?.detail || data?.message || t.errorMessage
+    }
+
+    if (data?.non_field_errors) {
+      return Array.isArray(data.non_field_errors)
+        ? data.non_field_errors.join(' ')
+        : data.non_field_errors
+    }
+
+    if (data?.email) {
+      return Array.isArray(data.email)
+        ? data.email.join(' ')
+        : data.email
+    }
+
+    if (data?.password) {
+      return Array.isArray(data.password)
+        ? data.password.join(' ')
+        : data.password
+    }
+
+    return data?.detail || data?.message || t.networkError
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    if (isLoading) {
+      return
+    }
+
+    setMessage(null)
+    setIsLoading(true)
+
     try {
-      return JSON.parse(localStorage.getItem(USERS_STORAGE_KEY)) || []
-    } catch (error) {
-      return []
-    }
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    setMessage({ type: '', text: '' })
-
-    const users = getSavedUsers()
-
-    if (users.length === 0) {
-      setMessage({
-        type: 'error',
-        text: t.emptyStorageMessage,
+      const response = await api.post('/auth/login/', {
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
       })
-      return
-    }
 
-    const cleanEmail = email.trim().toLowerCase()
+      console.log('Réponse complète du login :', response.data)
 
-    const foundUser = users.find((user) => {
-      return (
-        user.email?.trim().toLowerCase() === cleanEmail &&
-        user.motDePasse === password
+      const accessToken = response.data?.tokens?.access
+      const refreshToken = response.data?.tokens?.refresh
+      const userData = response.data?.user
+
+      if (!accessToken || !refreshToken || !userData) {
+        throw new Error(t.invalidResponse)
+      }
+
+      setCookie('accessToken', accessToken, 1)
+      setCookie('refreshToken', refreshToken, 7)
+
+      const savedAccessToken = getCookie('accessToken')
+
+      if (!savedAccessToken) {
+        throw new Error(
+          "Le jeton d'accès n'a pas pu être enregistré dans les cookies."
+        )
+      }
+
+      localStorage.setItem(
+        'waterChallengeCurrentUser',
+        JSON.stringify(userData)
       )
-    })
 
-    if (!foundUser) {
+      setMessage({
+        type: 'success',
+        text: t.successMessage,
+      })
+
+      setForm({
+        email: '',
+        password: '',
+      })
+
+      window.setTimeout(() => {
+        onLogin(userData)
+      }, 400)
+    } catch (error) {
+      console.error('Erreur de connexion :', error)
+
       setMessage({
         type: 'error',
-        text: t.errorMessage,
+        text: getErrorMessage(error),
       })
-      return
+    } finally {
+      setIsLoading(false)
     }
-
-    const connectedUser = {
-      id: foundUser.id,
-      nom: foundUser.nom,
-      prenom: foundUser.prenom,
-      email: foundUser.email,
-      telephone: foundUser.telephone,
-      dateNaissance: foundUser.dateNaissance,
-      scoutType: foundUser.scoutType,
-      section: foundUser.section,
-      position: foundUser.position,
-      fivondronana: foundUser.fivondronana,
-      faritra: foundUser.faritra,
-      diosezy: foundUser.diosezy,
-      connectedAt: new Date().toISOString(),
-    }
-
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(connectedUser))
-
-    setMessage({
-      type: 'success',
-      text: t.successMessage,
-    })
-
-    setEmail('')
-    setPassword('')
-
-    setTimeout(() => {
-      onNavigate('dashboard')
-    }, 600)
   }
 
   return (
     <div className="login-page">
       <motion.button
+        type="button"
         className="back-arrow-btn"
         onClick={() => onNavigate('landing')}
+        disabled={isLoading}
+        title="Retour"
+        aria-label="Retour à l'accueil"
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
-        type="button"
-        title="Retour"
       >
         ←
       </motion.button>
@@ -136,72 +201,90 @@ function LoginPage({ onNavigate }) {
       >
         <div className="login-box">
           <div className="form-header">
-            <div className="login-logo" onClick={() => onNavigate('landing')}>
+            <button
+              type="button"
+              className="login-logo"
+              onClick={() => onNavigate('landing')}
+              disabled={isLoading}
+            >
               <span className="login-logo-mark">W</span>
               <span>Water Challenge</span>
-            </div>
+            </button>
 
             <div className="login-language">
-              <button
-                type="button"
-                className={language === 'FR' ? 'active' : ''}
-                onClick={() => setLanguage('FR')}
-              >
-                FR
-              </button>
-
-              <button
-                type="button"
-                className={language === 'MLG' ? 'active' : ''}
-                onClick={() => setLanguage('MLG')}
-              >
-                MLG
-              </button>
+              {['FR', 'MLG'].map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  className={language === lang ? 'active' : ''}
+                  onClick={() => setLanguage(lang)}
+                  disabled={isLoading}
+                  aria-pressed={language === lang}
+                >
+                  {lang}
+                </button>
+              ))}
             </div>
           </div>
 
           <h1>{t.title}</h1>
           <p className="login-subtitle">{t.subtitle}</p>
 
-          {message.text && (
-            <div className={`login-message ${message.type}`}>
+          {message && (
+            <div
+              className={`login-message ${message.type}`}
+              role={message.type === 'error' ? 'alert' : 'status'}
+            >
               {message.text}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="login-form">
+          <form className="login-form" onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="email">{t.emailLabel}</label>
+
               <input
                 id="email"
+                name="email"
                 type="email"
+                value={form.email}
                 placeholder={t.emailPlaceholder}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  setMessage({ type: '', text: '' })
-                }}
+                onChange={handleChange}
+                disabled={isLoading}
+                autoComplete="email"
                 required
               />
             </div>
 
             <div className="form-group">
               <label htmlFor="password">{t.passwordLabel}</label>
+
               <input
                 id="password"
+                name="password"
                 type="password"
+                value={form.password}
                 placeholder={t.passwordPlaceholder}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  setMessage({ type: '', text: '' })
-                }}
+                onChange={handleChange}
+                disabled={isLoading}
+                autoComplete="current-password"
                 required
               />
             </div>
 
-            <button type="submit" className="login-btn">
-              {t.loginBtn}
+            <button
+              type="submit"
+              className="login-btn"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <span className="login-btn-loader-content">
+                  <span className="login-loader" aria-hidden="true" />
+                  {t.loadingBtn}
+                </span>
+              ) : (
+                t.loginBtn
+              )}
             </button>
           </form>
 
@@ -210,6 +293,7 @@ function LoginPage({ onNavigate }) {
               type="button"
               className="link-btn"
               onClick={() => onNavigate('signup')}
+              disabled={isLoading}
             >
               {t.signupLink}
             </button>

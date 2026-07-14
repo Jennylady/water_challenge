@@ -6,10 +6,15 @@ import SignupPage from './pages/SignupPage'
 import ConfirmEmail from './pages/ConfirmEmail'
 import Dashboard from './pages/Dashboard'
 
+import { getCookie, deleteCookie } from './utils/cookies'
+
 import './App.css'
 
+const PROTECTED_ROUTES = ['dashboard']
+const CURRENT_USER_KEY = 'waterChallengeCurrentUser'
+
 function App() {
-  const CURRENT_USER_KEY = 'waterChallengeCurrentUser'
+  const isAuthenticated = () => Boolean(getCookie('accessToken'))
 
   const getInitialPage = () => {
     const pathname = window.location.pathname
@@ -18,44 +23,57 @@ function App() {
       return 'confirm-email'
     }
 
-    if (pathname === '/login') {
-      return 'login'
+    const routes = {
+      '/': 'landing',
+      '/login': 'login',
+      '/signup': 'signup',
+      '/dashboard': 'dashboard',
     }
 
-    if (pathname === '/signup') {
-      return 'signup'
-    }
-
-    if (pathname === '/dashboard') {
-      return 'dashboard'
-    }
-
-    return 'landing'
+    return routes[pathname] || 'landing'
   }
 
   const getCurrentUser = () => {
     try {
-      return JSON.parse(localStorage.getItem(CURRENT_USER_KEY)) || null
+      const savedUser = localStorage.getItem(CURRENT_USER_KEY)
+
+      return savedUser ? JSON.parse(savedUser) : null
     } catch (error) {
+      console.error(
+        "Impossible de récupérer l'utilisateur enregistré :",
+        error
+      )
+
+      localStorage.removeItem(CURRENT_USER_KEY)
+
       return null
     }
   }
 
-  const savedUser = getCurrentUser()
-
-  const [currentPage, setCurrentPage] = useState(() => {
-    const initialPage = getInitialPage()
-
-    if (initialPage === 'dashboard' && !savedUser) {
+  const resolveAllowedPage = (page) => {
+    if (
+      PROTECTED_ROUTES.includes(page) &&
+      !isAuthenticated()
+    ) {
       return 'login'
     }
 
-    return initialPage
+    return page
+  }
+
+  const [user, setUser] = useState(() => {
+    if (!isAuthenticated()) {
+      return null
+    }
+
+    return getCurrentUser()
   })
 
-  const [user, setUser] = useState(savedUser)
+  const [currentPage, setCurrentPage] = useState(() => {
+    return resolveAllowedPage(getInitialPage())
+  })
 
-  const updateBrowserUrl = (page) => {
+  const updateBrowserUrl = (page, replace = false) => {
     const routes = {
       landing: '/',
       login: '/login',
@@ -63,59 +81,91 @@ function App() {
       dashboard: '/dashboard',
     }
 
-    if (routes[page]) {
-      window.history.pushState({}, '', routes[page])
+    const pathname = routes[page]
+
+    if (!pathname) {
+      return
+    }
+
+    if (replace) {
+      window.history.replaceState({}, '', pathname)
+    } else {
+      window.history.pushState({}, '', pathname)
     }
   }
 
   const handleNavigate = (page) => {
-    if (page === 'dashboard' && !user) {
-      setCurrentPage('login')
-      updateBrowserUrl('login')
-      return
-    }
+    const allowedPage = resolveAllowedPage(page)
 
-    setCurrentPage(page)
-    updateBrowserUrl(page)
+    setCurrentPage(allowedPage)
+    updateBrowserUrl(allowedPage)
   }
 
   const handleLogin = (userData) => {
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData))
+    if (!userData) {
+      console.error(
+        "Aucune donnée utilisateur reçue après la connexion."
+      )
+
+      return
+    }
+
+    localStorage.setItem(
+      CURRENT_USER_KEY,
+      JSON.stringify(userData)
+    )
 
     setUser(userData)
     setCurrentPage('dashboard')
-    updateBrowserUrl('dashboard')
+    updateBrowserUrl('dashboard', true)
   }
 
   const handleLogout = () => {
     localStorage.removeItem(CURRENT_USER_KEY)
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
+
+    deleteCookie('accessToken')
+    deleteCookie('refreshToken')
 
     setUser(null)
     setCurrentPage('landing')
-    updateBrowserUrl('landing')
+    updateBrowserUrl('landing', true)
   }
 
   useEffect(() => {
     const handlePopState = () => {
-      const page = getInitialPage()
+      const requestedPage = getInitialPage()
+      const allowedPage = resolveAllowedPage(requestedPage)
 
-      if (page === 'dashboard' && !getCurrentUser()) {
-        setCurrentPage('login')
-        return
+      setCurrentPage(allowedPage)
+
+      if (requestedPage !== allowedPage) {
+        updateBrowserUrl(allowedPage, true)
       }
-
-      setCurrentPage(page)
     }
 
     window.addEventListener('popstate', handlePopState)
 
     return () => {
-      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener(
+        'popstate',
+        handlePopState
+      )
     }
   }, [])
+
+  useEffect(() => {
+    if (
+      PROTECTED_ROUTES.includes(currentPage) &&
+      !isAuthenticated()
+    ) {
+      localStorage.removeItem(CURRENT_USER_KEY)
+
+      setUser(null)
+      setCurrentPage('login')
+      updateBrowserUrl('login', true)
+    }
+  }, [currentPage])
 
   return (
     <div className="app">
@@ -138,13 +188,15 @@ function App() {
         <ConfirmEmail onNavigate={handleNavigate} />
       )}
 
-      {currentPage === 'dashboard' && user && (
-        <Dashboard
-          user={user}
-          onLogout={handleLogout}
-          onNavigate={handleNavigate}
-        />
-      )}
+      {currentPage === 'dashboard' &&
+        isAuthenticated() &&
+        user && (
+          <Dashboard
+            user={user}
+            onLogout={handleLogout}
+            onNavigate={handleNavigate}
+          />
+        )}
     </div>
   )
 }

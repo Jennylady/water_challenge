@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import api from '../api/api'
 import './SignupPage.css'
@@ -9,6 +9,10 @@ function SignupPage({ onNavigate }) {
   const [message, setMessage] = useState({ type: '', text: '' })
   const [isLoading, setIsLoading] = useState(false)
   const [devConfirmationLink, setDevConfirmationLink] = useState('')
+  const [signupSuccess, setSignupSuccess] = useState(false)
+  const [successEmail, setSuccessEmail] = useState('')
+  const [isResending, setIsResending] = useState(false)
+  const [resendMessage, setResendMessage] = useState({ type: '', text: '' })
 
   const formRef = useRef(null)
 
@@ -30,6 +34,10 @@ function SignupPage({ onNavigate }) {
   }
 
   const [formData, setFormData] = useState(initialFormData)
+
+  // Non-scout users don't need the location (Faritra / Fivondronana / Diosezy) step
+  const isNonScout = formData.scoutType === 'non-scout'
+  const totalSteps = isNonScout ? 2 : 3
 
   const scoutOptions = {
     FR: [
@@ -84,6 +92,22 @@ function SignupPage({ onNavigate }) {
     },
   }
 
+  // Different position options for users who are not scouts
+  const nonScoutPositions = {
+    FR: {
+      etudiant: 'Étudiant',
+      association: 'Association',
+      professionnel: 'Professionnel',
+      autre: 'Autre',
+    },
+    MLG: {
+      etudiant: 'Mpianatra',
+      association: 'Fikambanana',
+      professionnel: 'Matihanina',
+      autre: 'Hafa',
+    },
+  }
+
   const content = {
     FR: {
       title: 'Créer un compte',
@@ -126,6 +150,18 @@ function SignupPage({ onNavigate }) {
         'Impossible de contacter le serveur. Vérifiez que Django est lancé.',
       devLinkText: 'Mode développement : lien de confirmation disponible.',
       devLinkBtn: 'Ouvrir le lien de confirmation',
+
+      // Success / email confirmation screen
+      successTitle: 'Vérifiez votre boîte mail',
+      successText: 'Un lien d’activation a été envoyé à',
+      successSubText:
+        'Cliquez sur ce lien pour activer votre compte avant de vous connecter.',
+      resendBtn: "Renvoyer l'email",
+      resendLoadingBtn: 'Envoi en cours...',
+      resendSuccess: 'Email renvoyé avec succès.',
+      resendError: "Impossible de renvoyer l'email. Réessayez plus tard.",
+      backToLoginBtn: 'Retour à la connexion',
+      newSignupBtn: "S'inscrire avec un autre compte",
     },
 
     MLG: {
@@ -170,6 +206,18 @@ function SignupPage({ onNavigate }) {
         'Tsy afaka mifandray amin’ny serveur. Alefaso aloha Django.',
       devLinkText: 'Mode développement : misy rohy fanamarinana.',
       devLinkBtn: 'Sokafy ny rohy fanamarinana',
+
+      // Success / email confirmation screen
+      successTitle: 'Jereo ny email-nao',
+      successText: 'Misy rohy fanamarinana nalefa tany amin\'ny',
+      successSubText:
+        'Tsindrio io rohy io mba hanamarinana ny kaontinao alohan\'ny hidiranao.',
+      resendBtn: 'Alefaso indray ny email',
+      resendLoadingBtn: 'Mandefa...',
+      resendSuccess: 'Voalefa soa aman-tsara ny email.',
+      resendError: 'Tsy afaka mandefa ny email. Andramo indray afaka kelikely.',
+      backToLoginBtn: 'Hiverina hiditra',
+      newSignupBtn: 'Hisoratra amin\'ny kaonty hafa',
     },
   }
 
@@ -190,10 +238,20 @@ function SignupPage({ onNavigate }) {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+      // Position options differ between scout / non-scout, so reset it on type change
+      ...(name === 'scoutType' ? { position: '' } : {}),
     }))
 
     clearMessage()
   }
+
+  // If the user switches to "non-scout" while sitting on the (now hidden)
+  // location step, bring them back to the last available step.
+  useEffect(() => {
+    if (isNonScout && currentStep > totalSteps) {
+      setCurrentStep(totalSteps)
+    }
+  }, [isNonScout, currentStep, totalSteps])
 
   const validateStepOne = () => {
     const requiredFields = [
@@ -236,6 +294,9 @@ function SignupPage({ onNavigate }) {
   }
 
   const validateStepThree = () => {
+    // Non-scout users skip the location requirement entirely
+    if (isNonScout) return true
+
     if (!formData.faritra.trim() || !formData.fivondronana.trim()) {
       showMessage('error', t.requiredError)
       return false
@@ -269,7 +330,7 @@ function SignupPage({ onNavigate }) {
       return false
     }
 
-    if (!validateStepThree()) {
+    if (!isNonScout && !validateStepThree()) {
       setCurrentStep(3)
       return false
     }
@@ -341,11 +402,13 @@ function SignupPage({ onNavigate }) {
 
       scout_type: formData.scoutType,
       section: formData.section,
-      sampana: formData.sampana || '',
+      sampana: isNonScout ? '' : formData.sampana || '',
       position: formData.position,
-      fivondronana: formData.fivondronana.trim(),
-      faritra: formData.faritra.trim(),
-      diosezy: formData.diosezy.trim(),
+
+      // Location is irrelevant for non-scout accounts
+      fivondronana: isNonScout ? '' : formData.fivondronana.trim(),
+      faritra: isNonScout ? '' : formData.faritra.trim(),
+      diosezy: isNonScout ? '' : formData.diosezy.trim(),
     }
   }
 
@@ -373,18 +436,47 @@ function SignupPage({ onNavigate }) {
       const payload = buildRegisterPayload()
       const response = await api.post('/auth/register/', payload)
 
-      showMessage('success', response.data?.message || t.successMessage)
+      const emailUsed = payload.email
 
       if (response.data?.dev_confirmation_link) {
         setDevConfirmationLink(response.data.dev_confirmation_link)
       }
 
+      setSuccessEmail(emailUsed)
+      setSignupSuccess(true)
       resetForm()
     } catch (error) {
       showMessage('error', extractApiError(error))
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleResendEmail = async () => {
+    if (!successEmail || isResending) return
+
+    setResendMessage({ type: '', text: '' })
+
+    try {
+      setIsResending(true)
+      await api.post('/auth/resend-confirmation/', { email: successEmail })
+      setResendMessage({ type: 'success', text: t.resendSuccess })
+    } catch (error) {
+      setResendMessage({
+        type: 'error',
+        text: error?.response?.data?.message || t.resendError,
+      })
+    } finally {
+      setIsResending(false)
+    }
+  }
+
+  const handleNewSignup = () => {
+    setSignupSuccess(false)
+    setSuccessEmail('')
+    setDevConfirmationLink('')
+    setResendMessage({ type: '', text: '' })
+    resetForm()
   }
 
   return (
@@ -439,336 +531,401 @@ function SignupPage({ onNavigate }) {
             </div>
           </div>
 
-          <h1>{t.title}</h1>
+          {signupSuccess ? (
+            // ---------- SUCCESS / CHECK YOUR EMAIL VIEW ----------
+            <motion.div
+              className="signup-success"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <div className="signup-success-icon">✓</div>
 
-          <div className="signup-progress">
-            <div className={`progress-step ${currentStep >= 1 ? 'active' : ''}`}>
-              <span>1</span>
-              <p>{t.step1}</p>
-            </div>
+              <h1>{t.successTitle}</h1>
 
-            <div className={`progress-step ${currentStep >= 2 ? 'active' : ''}`}>
-              <span>2</span>
-              <p>{t.step2}</p>
-            </div>
+              <p className="signup-success-text">
+                {t.successText} <strong>{successEmail}</strong>.
+              </p>
+              <p className="signup-success-subtext">{t.successSubText}</p>
 
-            <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>
-              <span>3</span>
-              <p>{t.step3}</p>
-            </div>
-          </div>
+              <AnimatePresence>
+                {resendMessage.text && (
+                  <motion.div
+                    className={`signup-message ${resendMessage.type}`}
+                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {resendMessage.text}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-          <AnimatePresence>
-            {message.text && (
-              <motion.div
-                className={`signup-message ${message.type}`}
-                initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                transition={{ duration: 0.25 }}
+              {devConfirmationLink && (
+                <div className="dev-confirmation-box">
+                  <p>{t.devLinkText}</p>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={openDevConfirmationLink}
+                  >
+                    {t.devLinkBtn}
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="btn-primary resend-btn"
+                onClick={handleResendEmail}
+                disabled={isResending}
               >
-                {message.text}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {isResending ? (
+                  <span className="btn-loader-content">
+                    <span className="signup-loader"></span>
+                    {t.resendLoadingBtn}
+                  </span>
+                ) : (
+                  t.resendBtn
+                )}
+              </button>
 
-          <AnimatePresence>
-            {devConfirmationLink && (
-              <motion.div
-                className="dev-confirmation-box"
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.25 }}
-              >
-                <p>{t.devLinkText}</p>
+              <div className="signup-footer">
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => onNavigate('login')}
+                >
+                  {t.backToLoginBtn}
+                </button>
 
                 <button
                   type="button"
                   className="link-btn"
-                  onClick={openDevConfirmationLink}
+                  onClick={handleNewSignup}
                 >
-                  {t.devLinkBtn}
+                  {t.newSignupBtn}
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </motion.div>
+          ) : (
+            // ---------- SIGNUP FORM ----------
+            <>
+              <h1>{t.title}</h1>
 
-          <form ref={formRef} onSubmit={handleSubmit} className="signup-form">
-            {currentStep === 1 && (
-              <motion.div
-                className="form-step"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>{t.nomLabel}</label>
-                    <input
-                      type="text"
-                      name="nom"
-                      value={formData.nom}
-                      onChange={handleChange}
-                      placeholder="Dupont"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>{t.prenomLabel}</label>
-                    <input
-                      type="text"
-                      name="prenom"
-                      value={formData.prenom}
-                      onChange={handleChange}
-                      placeholder="Jean"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
+              <div className="signup-progress">
+                <div className={`progress-step ${currentStep >= 1 ? 'active' : ''}`}>
+                  <span>1</span>
+                  <p>{t.step1}</p>
                 </div>
 
-                <div className="form-group">
-                  <label>{t.emailLabel}</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="email@example.com"
-                    required
-                    disabled={isLoading}
-                  />
+                <div className={`progress-step ${currentStep >= 2 ? 'active' : ''}`}>
+                  <span>2</span>
+                  <p>{t.step2}</p>
                 </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>{t.passwordLabel}</label>
-                    <input
-                      type="password"
-                      name="motDePasse"
-                      value={formData.motDePasse}
-                      onChange={handleChange}
-                      placeholder={t.passwordPlaceholder}
-                      minLength="8"
-                      required
-                      disabled={isLoading}
-                    />
+                {!isNonScout && (
+                  <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>
+                    <span>3</span>
+                    <p>{t.step3}</p>
                   </div>
+                )}
+              </div>
 
-                  <div className="form-group">
-                    <label>{t.confirmPasswordLabel}</label>
-                    <input
-                      type="password"
-                      name="confirmationMotDePasse"
-                      value={formData.confirmationMotDePasse}
-                      onChange={handleChange}
-                      placeholder={t.confirmPasswordPlaceholder}
-                      minLength="8"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>{t.telephoneLabel}</label>
-                    <input
-                      type="tel"
-                      name="telephone"
-                      value={formData.telephone}
-                      onChange={handleChange}
-                      placeholder="+261 XX XXX XXXX"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>{t.dateNaissanceLabel}</label>
-                    <input
-                      type="date"
-                      name="dateNaissance"
-                      value={formData.dateNaissance}
-                      onChange={handleChange}
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {currentStep === 2 && (
-              <motion.div
-                className="form-step"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="form-group">
-                  <label>{t.scoutTypeLabel}</label>
-                  <select
-                    name="scoutType"
-                    value={formData.scoutType}
-                    onChange={handleChange}
-                    required
-                    disabled={isLoading}
+              <AnimatePresence>
+                {message.text && (
+                  <motion.div
+                    className={`signup-message ${message.type}`}
+                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                    transition={{ duration: 0.25 }}
                   >
-                    <option value="">{t.selectOption}</option>
+                    {message.text}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                    {scoutOptions[language].map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <form ref={formRef} onSubmit={handleSubmit} className="signup-form">
+                {currentStep === 1 && (
+                  <motion.div
+                    className="form-step"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>{t.nomLabel}</label>
+                        <input
+                          type="text"
+                          name="nom"
+                          value={formData.nom}
+                          onChange={handleChange}
+                          placeholder="Dupont"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>{t.sectionLabel}</label>
-                    <select
-                      name="section"
-                      value={formData.section}
-                      onChange={handleChange}
-                      required
+                      <div className="form-group">
+                        <label>{t.prenomLabel}</label>
+                        <input
+                          type="text"
+                          name="prenom"
+                          value={formData.prenom}
+                          onChange={handleChange}
+                          placeholder="Jean"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>{t.emailLabel}</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        placeholder="email@example.com"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>{t.passwordLabel}</label>
+                        <input
+                          type="password"
+                          name="motDePasse"
+                          value={formData.motDePasse}
+                          onChange={handleChange}
+                          placeholder={t.passwordPlaceholder}
+                          minLength="8"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>{t.confirmPasswordLabel}</label>
+                        <input
+                          type="password"
+                          name="confirmationMotDePasse"
+                          value={formData.confirmationMotDePasse}
+                          onChange={handleChange}
+                          placeholder={t.confirmPasswordPlaceholder}
+                          minLength="8"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>{t.telephoneLabel}</label>
+                        <input
+                          type="tel"
+                          name="telephone"
+                          value={formData.telephone}
+                          onChange={handleChange}
+                          placeholder="+261 XX XXX XXXX"
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>{t.dateNaissanceLabel}</label>
+                        <input
+                          type="date"
+                          name="dateNaissance"
+                          value={formData.dateNaissance}
+                          onChange={handleChange}
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {currentStep === 2 && (
+                  <motion.div
+                    className="form-step"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <div className="form-group">
+                      <label>{t.scoutTypeLabel}</label>
+                      <select
+                        name="scoutType"
+                        value={formData.scoutType}
+                        onChange={handleChange}
+                        required
+                        disabled={isLoading}
+                      >
+                        <option value="">{t.selectOption}</option>
+
+                        {scoutOptions[language].map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>{t.sectionLabel}</label>
+                        <select
+                          name="section"
+                          value={formData.section}
+                          onChange={handleChange}
+                          required
+                          disabled={isLoading}
+                        >
+                          <option value="">{t.selectOption}</option>
+
+                          {Object.entries(sections[language]).map(([key, val]) => (
+                            <option key={key} value={key}>
+                              {val}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>{t.positionLabel}</label>
+                        <select
+                          name="position"
+                          value={formData.position}
+                          onChange={handleChange}
+                          required
+                          disabled={isLoading}
+                        >
+                          <option value="">{t.selectOption}</option>
+
+                          {Object.entries(
+                            isNonScout ? nonScoutPositions[language] : positions[language]
+                          ).map(([key, val]) => (
+                            <option key={key} value={key}>
+                              {val}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {currentStep === 3 && !isNonScout && (
+                  <motion.div
+                    className="form-step"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <div className="form-group">
+                      <label>{t.faritraLabel}</label>
+                      <input
+                        type="text"
+                        name="faritra"
+                        value={formData.faritra}
+                        onChange={handleChange}
+                        placeholder="Ex: Analamanga"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>{t.fivondronanaLabel}</label>
+                      <input
+                        type="text"
+                        name="fivondronana"
+                        value={formData.fivondronana}
+                        onChange={handleChange}
+                        placeholder="Ex: Antananarivo"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>{t.diosezLabel}</label>
+                      <input
+                        type="text"
+                        name="diosezy"
+                        value={formData.diosezy}
+                        onChange={handleChange}
+                        placeholder="Ex: Antananarivo"
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                <div className="form-buttons">
+                  {currentStep > 1 && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handlePreviousStep}
                       disabled={isLoading}
                     >
-                      <option value="">{t.selectOption}</option>
-
-                      {Object.entries(sections[language]).map(([key, val]) => (
-                        <option key={key} value={key}>
-                          {val}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>{t.positionLabel}</label>
-                    <select
-                      name="position"
-                      value={formData.position}
-                      onChange={handleChange}
-                      required
-                      disabled={isLoading}
-                    >
-                      <option value="">{t.selectOption}</option>
-
-                      {Object.entries(positions[language]).map(([key, val]) => (
-                        <option key={key} value={key}>
-                          {val}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {currentStep === 3 && (
-              <motion.div
-                className="form-step"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="form-group">
-                  <label>{t.faritraLabel}</label>
-                  <input
-                    type="text"
-                    name="faritra"
-                    value={formData.faritra}
-                    onChange={handleChange}
-                    placeholder="Ex: Analamanga"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>{t.fivondronanaLabel}</label>
-                  <input
-                    type="text"
-                    name="fivondronana"
-                    value={formData.fivondronana}
-                    onChange={handleChange}
-                    placeholder="Ex: Antananarivo"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>{t.diosezLabel}</label>
-                  <input
-                    type="text"
-                    name="diosezy"
-                    value={formData.diosezy}
-                    onChange={handleChange}
-                    placeholder="Ex: Antananarivo"
-                    disabled={isLoading}
-                  />
-                </div>
-              </motion.div>
-            )}
-
-            <div className="form-buttons">
-              {currentStep > 1 && (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handlePreviousStep}
-                  disabled={isLoading}
-                >
-                  {t.backBtn}
-                </button>
-              )}
-
-              {currentStep < 3 && (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleNextStep}
-                  disabled={isLoading}
-                >
-                  {t.nextBtn}
-                </button>
-              )}
-
-              {currentStep === 3 && (
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <span className="btn-loader-content">
-                      <span className="signup-loader"></span>
-                      {t.loadingBtn}
-                    </span>
-                  ) : (
-                    t.signupBtn
+                      {t.backBtn}
+                    </button>
                   )}
-                </button>
-              )}
-            </div>
-          </form>
 
-          <div className="signup-footer">
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => onNavigate('login')}
-              disabled={isLoading}
-            >
-              {t.loginLink}
-            </button>
-          </div>
+                  {currentStep < totalSteps && (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleNextStep}
+                      disabled={isLoading}
+                    >
+                      {t.nextBtn}
+                    </button>
+                  )}
+
+                  {currentStep === totalSteps && (
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <span className="btn-loader-content">
+                          <span className="signup-loader"></span>
+                          {t.loadingBtn}
+                        </span>
+                      ) : (
+                        t.signupBtn
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <div className="signup-footer">
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => onNavigate('login')}
+                  disabled={isLoading}
+                >
+                  {t.loginLink}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </motion.div>
     </div>

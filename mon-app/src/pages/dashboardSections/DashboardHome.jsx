@@ -121,26 +121,7 @@ function DashboardHome({ t, data, user, activities, setActiveSection }) {
         </div>
       </div>
 
-      {/* <div className="dash-card dashboard-profile-summary">
-        <div className="dash-hero-metrics light">
-          <div className="dash-hero-metric">
-            <strong>{user.niveau}</strong>
-            <span>{t.home.level}</span>
-          </div>
-          <div className="dash-hero-metric">
-            <strong>{user.badge}</strong>
-            <span>{t.firstBadge}</span>
-          </div>
-          <div className="dash-hero-metric">
-            <strong>{peopleTouched}</strong>
-            <span>{t.home.peopleTouched}</span>
-          </div>
-          <div className="dash-hero-metric">
-            <strong>{data.modules.length}</strong>
-            <span>Modules</span>
-          </div>
-        </div>
-      </div> */}
+     
     </section>
   )
 }
