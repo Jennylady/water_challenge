@@ -20,6 +20,7 @@ urlpatterns = [
     path('activate/', ActivateEmailAPIView.as_view(), name='user_activate_email'),
     path('resend-confirmation/', ResendConfirmationAPIView.as_view(), name='user_resend_confirmation'),
 
+
     path('login/', LoginAPIView.as_view(), name='user_login'),
     path('token/refresh/', RefreshTokenAPIView.as_view(), name='user_token_refresh'),
     path('logout/', LogoutAPIView.as_view(), name='user_logout'),

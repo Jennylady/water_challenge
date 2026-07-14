@@ -305,7 +305,8 @@ def _modifier_question(question, donnees):
 # =============================================================================
 
 class ListeModulesAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_liste_modules_ambassadeur
     def get(self, request):
@@ -317,7 +318,7 @@ class ListeModulesAmbassadeurView(APIView):
             serializer = ModuleListeSerializer(
                 modules,
                 many=True,
-                context={'request': request, 'utilisateur': request.user},
+                context={'request': request, 'utilisateur': request.app_user},
             )
             return reponse_succes('modules', serializer.data)
         except Exception as exc:
@@ -325,7 +326,8 @@ class ListeModulesAmbassadeurView(APIView):
 
 
 class DetailModuleAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_detail_module_ambassadeur
     def get(self, request, module_id):
@@ -337,7 +339,7 @@ class DetailModuleAmbassadeurView(APIView):
                 return reponse_erreur('Ce module est actuellement fermé.', status.HTTP_403_FORBIDDEN)
 
             progression, _ = ProgressionModule.objects.get_or_create(
-                utilisateur=request.user, module=module
+                utilisateur=request.app_user, module=module
             )
             if not progression.est_lu:
                 progression.est_lu = True
@@ -354,9 +356,8 @@ class DetailModuleAmbassadeurView(APIView):
 
 
 class QuizModuleAmbassadeurView(APIView):
-    """Récupère ou reprend la tentative en cours et son tirage aléatoire persistant."""
-
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_quiz_module_ambassadeur
     def get(self, request, module_id):
@@ -368,7 +369,7 @@ class QuizModuleAmbassadeurView(APIView):
                 return reponse_erreur('Ce module est actuellement fermé.', status.HTTP_403_FORBIDDEN)
 
             progression = ProgressionModule.objects.filter(
-                utilisateur=request.user, module=module
+                utilisateur=request.app_user, module=module
             ).first()
             if progression is None or not progression.est_lu:
                 return reponse_erreur(
@@ -379,7 +380,7 @@ class QuizModuleAmbassadeurView(APIView):
             if quiz is None:
                 return reponse_erreur("Ce module n'a pas de quiz.", status.HTTP_404_NOT_FOUND)
 
-            tentative, creee = demarrer_ou_reprendre_tentative(request.user, quiz)
+            tentative, creee = demarrer_ou_reprendre_tentative(request.app_user, quiz)
             serializer = QuizAmbassadeurSerializer(
                 quiz, context={'tentative': tentative}
             )
@@ -392,14 +393,15 @@ class QuizModuleAmbassadeurView(APIView):
 
 
 class RepondreQuestionAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_repondre_question
     def post(self, request, tentative_id, question_id):
         try:
             tentative = TentativeQuiz.objects.select_related('quiz').filter(
-                uuid=tentative_id, utilisateur=request.user
+                uuid=tentative_id, utilisateur=request.app_user
             ).first()
             if tentative is None:
                 return reponse_erreur('Tentative introuvable.', status.HTTP_404_NOT_FOUND)
@@ -438,7 +440,8 @@ class RepondreQuestionAmbassadeurView(APIView):
 
 
 class SoumettreTentativeQuizAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [JSONParser]
 
     @swagger_soumettre_tentative

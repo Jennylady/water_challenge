@@ -61,11 +61,7 @@ class RegisterAPIView(APIView):
             response_data = {
                 'success': True,
                 'message': 'Compte créé avec succès. Veuillez confirmer votre email avant de vous connecter.',
-                'user': UserSerializer(user).data,
             }
-            if settings.DEBUG:
-                response_data['dev_activation_link'] = activation_link
-                response_data['dev_confirmation_link'] = activation_link
 
             return Response(response_data, status=status.HTTP_201_CREATED)
         except Exception as e:
