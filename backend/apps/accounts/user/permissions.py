@@ -15,7 +15,7 @@ class IsAuthenticatedUser(BasePermission):
             return False
         if not user.is_active:
             return False
-        request.app_user = user
+        request.user = user
         return True
 
 
@@ -29,7 +29,7 @@ class IsValidatorUser(BasePermission):
         user = get_user(token)
         if user is None or not user.is_active:
             return False
-        request.app_user = user
+        request.user = user
         return user.role in ['validator', 'moderator']
 
 
@@ -41,8 +41,7 @@ class IsModeratorUser(BasePermission):
         if not token:
             return False
         user = get_user(token)
-        print(user.is_active)
         if user is None or not user.is_active:
             return False
-        request.app_user = user
+        request.user = user
         return True

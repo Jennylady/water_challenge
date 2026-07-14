@@ -318,7 +318,7 @@ class ListeModulesAmbassadeurView(APIView):
             serializer = ModuleListeSerializer(
                 modules,
                 many=True,
-                context={'request': request, 'utilisateur': request.app_user},
+                context={'request': request, 'utilisateur': request.user},
             )
             return reponse_succes('modules', serializer.data)
         except Exception as exc:
@@ -339,7 +339,7 @@ class DetailModuleAmbassadeurView(APIView):
                 return reponse_erreur('Ce module est actuellement fermé.', status.HTTP_403_FORBIDDEN)
 
             progression, _ = ProgressionModule.objects.get_or_create(
-                utilisateur=request.app_user, module=module
+                utilisateur=request.user, module=module
             )
             if not progression.est_lu:
                 progression.est_lu = True
@@ -369,7 +369,7 @@ class QuizModuleAmbassadeurView(APIView):
                 return reponse_erreur('Ce module est actuellement fermé.', status.HTTP_403_FORBIDDEN)
 
             progression = ProgressionModule.objects.filter(
-                utilisateur=request.app_user, module=module
+                utilisateur=request.user, module=module
             ).first()
             if progression is None or not progression.est_lu:
                 return reponse_erreur(
@@ -380,7 +380,7 @@ class QuizModuleAmbassadeurView(APIView):
             if quiz is None:
                 return reponse_erreur("Ce module n'a pas de quiz.", status.HTTP_404_NOT_FOUND)
 
-            tentative, creee = demarrer_ou_reprendre_tentative(request.app_user, quiz)
+            tentative, creee = demarrer_ou_reprendre_tentative(request.user, quiz)
             serializer = QuizAmbassadeurSerializer(
                 quiz, context={'tentative': tentative}
             )
@@ -401,7 +401,7 @@ class RepondreQuestionAmbassadeurView(APIView):
     def post(self, request, tentative_id, question_id):
         try:
             tentative = TentativeQuiz.objects.select_related('quiz').filter(
-                uuid=tentative_id, utilisateur=request.app_user
+                uuid=tentative_id, utilisateur=request.user
             ).first()
             if tentative is None:
                 return reponse_erreur('Tentative introuvable.', status.HTTP_404_NOT_FOUND)

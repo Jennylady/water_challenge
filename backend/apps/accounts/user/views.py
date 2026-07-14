@@ -276,7 +276,7 @@ class MeAPIView(APIView):
     def get(self, request):
         try:
             return Response(
-                {'success': True, 'user': UserSerializer(request.app_user).data},
+                {'success': True, 'user': UserSerializer(request.user).data},
                 status=status.HTTP_200_OK,
             )
         except Exception as e:
@@ -298,11 +298,11 @@ class MyProfileAPIView(APIView):
     @PROFILE_ME_SWAGGER
     def get(self, request):
         try:
-            profile, _ = Profile.objects.get_or_create(user=request.app_user)
+            profile, _ = Profile.objects.get_or_create(user=request.user)
             return Response(
                 {
                     'success': True,
-                    'user': UserSerializer(request.app_user).data,
+                    'user': UserSerializer(request.user).data,
                     'profile': ProfileSerializer(profile).data,
                 },
                 status=status.HTTP_200_OK,
@@ -327,7 +327,7 @@ class ProfileCreateAPIView(APIView):
     @PROFILE_CREATE_SWAGGER
     def post(self, request):
         try:
-            serializer = ProfileCreateSerializer(data=request.data, context={'user': request.app_user})
+            serializer = ProfileCreateSerializer(data=request.data, context={'user': request.user})
             if not serializer.is_valid():
                 return Response(
                     {'success': False, 'message': 'Données invalides.', 'errors': serializer.errors},
@@ -369,7 +369,7 @@ class ProfileUpdateAPIView(APIView):
     @PROFILE_UPDATE_SWAGGER
     def patch(self, request):
         try:
-            serializer = ProfileUpdateSerializer(request.app_user, data=request.data, partial=True)
+            serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
             if not serializer.is_valid():
                 return Response(
                     {'success': False, 'message': 'Données invalides.', 'errors': serializer.errors},
@@ -406,7 +406,7 @@ class ProfileDeleteAPIView(APIView):
     def delete(self, request):
         try:
             try:
-                profile = request.app_user.profile
+                profile = request.user.profile
             except Profile.DoesNotExist:
                 return Response(
                     {'success': False, 'message': 'Profil introuvable.'},
@@ -440,7 +440,7 @@ class ChangePasswordAPIView(APIView):
     @CHANGE_PASSWORD_SWAGGER
     def post(self, request):
         try:
-            serializer = ChangePasswordSerializer(data=request.data, context={'user': request.app_user})
+            serializer = ChangePasswordSerializer(data=request.data, context={'user': request.user})
             if not serializer.is_valid():
                 return Response(
                     {'success': False, 'message': 'Données invalides.', 'errors': serializer.errors},

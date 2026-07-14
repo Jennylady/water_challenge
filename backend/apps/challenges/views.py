@@ -124,7 +124,8 @@ def _contexte_defis(request, utilisateur, suivis, defis):
 # =============================================================================
 
 class ListeDefisAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_liste_defis
     def get(self, request):
@@ -165,7 +166,8 @@ class ListeDefisAmbassadeurView(APIView):
 
 
 class DetailDefiAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_detail_defi
     def get(self, request, defi_id):
@@ -184,7 +186,8 @@ class DetailDefiAmbassadeurView(APIView):
 
 
 class CommencerDefiAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_commencer_defi
     def post(self, request, defi_id):
@@ -206,7 +209,8 @@ class CommencerDefiAmbassadeurView(APIView):
 
 
 class SoumettreActiviteAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_soumettre_activite
@@ -255,7 +259,8 @@ class SoumettreActiviteAmbassadeurView(APIView):
 
 
 class MesSoumissionsAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_mes_soumissions
     def get(self, request):
@@ -282,7 +287,8 @@ class MesSoumissionsAmbassadeurView(APIView):
 
 
 class DetailSoumissionAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_detail_soumission
     def get(self, request, soumission_id):
@@ -303,7 +309,8 @@ class DetailSoumissionAmbassadeurView(APIView):
 
 
 class AnnulerSoumissionAmbassadeurView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_annuler_soumission
     def delete(self, request, soumission_id):
@@ -323,7 +330,8 @@ class AnnulerSoumissionAmbassadeurView(APIView):
 
 
 class MesStatistiquesDefisView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
 
     @swagger_mes_statistiques
     def get(self, request):
