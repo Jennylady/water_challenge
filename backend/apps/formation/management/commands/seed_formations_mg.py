@@ -219,7 +219,7 @@ class Command(BaseCommand):
                         Notification.Type.NOUVEAU_MODULE,
                         "Misy fiofanana vaovao",
                         f"Efa azo ianarana ny module « {module.titre} ».",
-                        f"/formation/modules/{module.uuid}/",
+                        f"/formation/modules/{module.slug}/",
                     )
 
         self.stdout.write(self.style.SUCCESS("Formations sy quiz seedés avec succès."))

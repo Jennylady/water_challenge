@@ -88,7 +88,7 @@ class SoumissionActiviteSerializer(serializers.ModelSerializer):
 
 
 class DefiListeSerializer(serializers.ModelSerializer):
-    module_id = serializers.IntegerField(source='module.id', read_only=True, allow_null=True)
+    module_slug = serializers.SlugField(source='module.slug', read_only=True, allow_null=True)
     module_titre = serializers.CharField(source='module.titre', read_only=True, allow_null=True)
     image_couverture_url = serializers.SerializerMethodField()
     est_accessible = serializers.BooleanField(read_only=True)
@@ -101,7 +101,7 @@ class DefiListeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Defi
         fields = [
-            'id', 'module_id', 'module_titre', 'titre', 'description',
+            'id', 'module_slug', 'module_titre', 'titre', 'description',
             'image_couverture_url', 'niveau', 'ordre', 'duree_estimee',
             'points_recompense', 'nombre_photos_min', 'nombre_photos_max',
             'video_obligatoire', 'est_obligatoire', 'est_accessible',
@@ -169,7 +169,7 @@ class DefiDetailSerializer(DefiListeSerializer):
 
 
 class DefiAdminSerializer(serializers.ModelSerializer):
-    module_id = serializers.IntegerField(source='module.id', read_only=True, allow_null=True)
+    module_slug = serializers.SlugField(source='module.slug', read_only=True, allow_null=True)
     module_titre = serializers.CharField(source='module.titre', read_only=True, allow_null=True)
     image_couverture_url = serializers.SerializerMethodField()
     est_accessible = serializers.BooleanField(read_only=True)
@@ -180,7 +180,7 @@ class DefiAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Defi
         fields = [
-            'id', 'module_id', 'module_titre', 'titre', 'description',
+            'id', 'module_slug', 'module_titre', 'titre', 'description',
             'resultat_attendu', 'criteres_validation', 'image_couverture_url',
             'niveau', 'ordre', 'duree_estimee', 'points_recompense',
             'nombre_photos_min', 'nombre_photos_max', 'video_obligatoire',

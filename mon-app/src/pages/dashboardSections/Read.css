@@ -1521,3 +1521,60 @@
       0.01ms !important;
   }
 }
+.read-page__resources {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.read-page__illustrations figcaption {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.read-page__illustrations figcaption span {
+  font-size: 0.82rem;
+  opacity: 0.78;
+}
+
+.read-page__action-message {
+  margin: 0 0 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.86rem;
+}
+
+.read-page__action-message.is-success {
+  background: rgba(31, 157, 96, 0.1);
+  color: #127347;
+}
+
+.read-page__action-message.is-error {
+  background: rgba(195, 49, 49, 0.1);
+  color: #a32323;
+}
+
+.read-page__video-section iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 0;
+  border-radius: 13px;
+  background: #101828;
+}
+
+.read-page__video-status {
+  margin: 10px 0 0;
+  color: var(--read-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.read-page__video-status.is-error {
+  color: #b42318;
+}
+
+.read-page__video-status a {
+  color: var(--read-primary);
+  font-weight: 900;
+}

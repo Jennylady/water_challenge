@@ -5,67 +5,27 @@ import {
   useState,
 } from 'react'
 
-import api from '../../api/api'
-import { getCookie } from '../../utils/cookies'
+import { getApiErrorMessage } from '../../api/api'
+import { formationApi } from '../../api/services'
 
 import './Quiz.css'
 
-// ---------------------------------------------------------------------------
-// Client API — même pattern que LearningSection.jsx (cookies, pas de
-// localStorage pour le token).
-// ---------------------------------------------------------------------------
-
-const getAccessToken = () =>
-  getCookie('accessToken') ||
-  getCookie('access') ||
-  ''
-
-const fetchQuizData = async (moduleId) => {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    throw new Error(
-      "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
-    )
-  }
-
-  const response = await api.get(
-    `/formation/modules/${moduleId}/quiz/`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  )
-
-  return response?.data
-}
+const fetchQuizData = async (moduleSlug) =>
+  formationApi.getQuiz(moduleSlug)
 
 const saveReponse = async (
   tentativeId,
   questionId,
   payload
-) => {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    throw new Error(
-      "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
-    )
-  }
-
-  const response = await api.post(
-    `/formation/quiz/tentatives/${tentativeId}/questions/${questionId}/reponse/`,
-    payload,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
+) =>
+  formationApi.answerQuestion(
+    tentativeId,
+    questionId,
+    payload
   )
 
-  return response?.data
-}
+const submitTentative = async (tentativeId) =>
+  formationApi.submitAttempt(tentativeId)
 
 // ---------------------------------------------------------------------------
 // Helpers de normalisation des données (compatibles avec les champs FR
@@ -73,11 +33,7 @@ const saveReponse = async (
 // ---------------------------------------------------------------------------
 
 const getModuleSlug = (module) =>
-  String(
-    module?.slug ||
-      module?.id ||
-      'module'
-  )
+  String(module?.slug || '').trim()
 
 const getQuestionId = (
   question,
@@ -196,7 +152,8 @@ const getOptionText = (
 
 const getQuestionType = (question) =>
   String(
-    question?.type ||
+    question?.type_question ||
+      question?.type ||
       question?.question_type ||
       ''
   ).toLowerCase()
@@ -232,11 +189,13 @@ const getExistingAnswerState = (question) => {
     question?.choix_ids ??
     question?.reponse_choix_ids ??
     question?.mes_choix ??
+    question?.reponse_enregistree?.choix_ids ??
     question?.reponse_utilisateur?.choix_ids
 
   const savedText =
     question?.reponse_texte ??
     question?.ma_reponse ??
+    question?.reponse_enregistree?.reponse_texte ??
     question?.reponse_utilisateur?.reponse_texte
 
   const rawResult =
@@ -372,6 +331,12 @@ function Quiz({
   const [saveError, setSaveError] =
     useState('')
 
+  const [submission, setSubmission] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [attempts, setAttempts] = useState([])
+  const [ranking, setRanking] = useState([])
+  const [sideDataError, setSideDataError] = useState('')
+
   const hasNotifiedSubmitRef = useRef(false)
 
   const questions = quiz?.questions || []
@@ -385,17 +350,16 @@ function Quiz({
   useEffect(() => {
     let isCancelled = false
 
-    const moduleId = module?.id
-
     setAnswers({})
     setShortAnswerDrafts({})
     setQuestionResults({})
     setSavingQuestionIds({})
     setSaveError('')
+    setSubmission(null)
     setActiveQuestionIndex(0)
     hasNotifiedSubmitRef.current = false
 
-    if (!moduleId) {
+    if (!moduleSlug) {
       setQuiz(null)
       setIsLoadingQuiz(false)
       setLoadError('')
@@ -406,13 +370,11 @@ function Quiz({
     setIsLoadingQuiz(true)
     setLoadError('')
 
-    fetchQuizData(moduleId)
-      .then((data) => {
+    fetchQuizData(moduleSlug)
+      .then((fetchedQuiz) => {
         if (isCancelled) return
 
-        const fetchedQuiz = data?.quiz || null
-
-        setQuiz(fetchedQuiz)
+        setQuiz(fetchedQuiz || null)
 
         const initialAnswers = {}
         const initialDrafts = {}
@@ -477,7 +439,57 @@ function Quiz({
     return () => {
       isCancelled = true
     }
-  }, [module?.id, reloadToken])
+  }, [moduleSlug, reloadToken])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!moduleSlug) {
+      setAttempts([])
+      setRanking([])
+      return undefined
+    }
+
+    setSideDataError('')
+
+    Promise.allSettled([
+      formationApi.listAttempts(moduleSlug),
+      formationApi.getRanking(moduleSlug),
+    ]).then(([attemptsResult, rankingResult]) => {
+      if (cancelled) {
+        return
+      }
+
+      if (attemptsResult.status === 'fulfilled') {
+        setAttempts(
+          Array.isArray(attemptsResult.value)
+            ? attemptsResult.value
+            : []
+        )
+      }
+
+      if (rankingResult.status === 'fulfilled') {
+        setRanking(
+          Array.isArray(rankingResult.value)
+            ? rankingResult.value
+            : []
+        )
+      }
+
+      if (
+        attemptsResult.status === 'rejected' &&
+        rankingResult.status === 'rejected'
+      ) {
+        setSideDataError(
+          'Historique et classement indisponibles pour le moment.'
+        )
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [moduleSlug, reloadToken])
 
   const currentQuestion =
     questions[activeQuestionIndex]
@@ -540,124 +552,90 @@ function Quiz({
         )
       : 0
 
-  const isFinished =
+  const allAnswersCompleted =
     questions.length > 0 &&
-    (answeredQuestionsCount ===
-      questions.length ||
+    answeredQuestionsCount === questions.length
+
+  const isFinished = Boolean(
+    submission ||
       (quiz?.statut_tentative &&
-        quiz.statut_tentative !==
-          'en_cours'))
+        quiz.statut_tentative !== 'en_cours')
+  )
 
   const scoreSummary = useMemo(() => {
+    if (submission) {
+      const submittedResponses = Array.isArray(submission.reponses)
+        ? submission.reponses
+        : []
+      const correct = submittedResponses.filter(
+        (response) => response?.est_correcte === true
+      ).length
+
+      return {
+        correct,
+        total:
+          Number(submission.nombre_questions) ||
+          questions.length,
+        percentage: Number(submission.score) || 0,
+        points: Number(submission.points_obtenus) || 0,
+        pointsTotal: Number(submission.points_total) || 0,
+      }
+    }
+
     const correctedEntries = Object.values(
       questionResults
     ).filter(
       (result) =>
-        typeof result?.estCorrecte ===
-        'boolean'
+        typeof result?.estCorrecte === 'boolean'
     )
 
     if (correctedEntries.length === 0) {
       return null
     }
 
-    const correctCount =
-      correctedEntries.filter(
-        (result) => result.estCorrecte
-      ).length
+    const correct = correctedEntries.filter(
+      (result) => result.estCorrecte
+    ).length
 
     return {
-      correct: correctCount,
+      correct,
       total: correctedEntries.length,
       percentage: Math.round(
-        (correctCount /
-          correctedEntries.length) *
-          100
+        (correct / correctedEntries.length) * 100
       ),
     }
-  }, [questionResults])
+  }, [questionResults, questions.length, submission])
 
-  // null = pas de correction automatique, donc pas de verdict possible
-  const isSuccess = useMemo(() => {
-    if (!scoreSummary) {
-      return null
-    }
-
-    const seuil = Number(
-      quiz?.score_de_reussite
-    )
-
-    if (!Number.isFinite(seuil)) {
-      return null
-    }
-
-    return (
-      scoreSummary.percentage >= seuil
-    )
-  }, [scoreSummary, quiz?.score_de_reussite])
+  const isSuccess = submission
+    ? Boolean(submission.est_reussi)
+    : null
 
   useEffect(() => {
     if (
-      isFinished &&
+      submission &&
       !hasNotifiedSubmitRef.current &&
       typeof onSubmit === 'function'
     ) {
       hasNotifiedSubmitRef.current = true
 
       onSubmit({
-        moduleId: module?.id,
         moduleSlug,
         quizId: quiz?.id,
-        tentativeId: quiz?.tentative_id,
+        tentativeId: submission.id || quiz?.tentative_id,
         totalQuestions: questions.length,
         score: scoreSummary,
+        tentative: submission,
       })
     }
   }, [
-    isFinished,
-    onSubmit,
-    module?.id,
     moduleSlug,
+    onSubmit,
+    questions.length,
     quiz?.id,
     quiz?.tentative_id,
-    questions.length,
     scoreSummary,
+    submission,
   ])
-
-  const buildModuleUrl = (
-    view = 'quiz'
-  ) => {
-    if (
-      typeof window === 'undefined'
-    ) {
-      return '#'
-    }
-
-    const nextUrl = new URL(
-      window.location.href
-    )
-
-    nextUrl.searchParams.set(
-      'section',
-      'learning'
-    )
-
-    nextUrl.searchParams.set(
-      'module',
-      moduleSlug
-    )
-
-    nextUrl.searchParams.set(
-      'view',
-      view
-    )
-
-    nextUrl.searchParams.delete(
-      'moduleId'
-    )
-
-    return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
-  }
 
 
   const saveAnswerToServer = async (
@@ -686,13 +664,11 @@ function Quiz({
     setSaveError('')
 
     try {
-      const data = await saveReponse(
+      const reponse = await saveReponse(
         quiz.tentative_id,
         questionId,
         payload
       )
-
-      const reponse = data?.reponse
 
       if (
         reponse &&
@@ -829,6 +805,57 @@ function Quiz({
     )
   }
 
+  const handleSubmitAttempt = async () => {
+    if (
+      !quiz?.tentative_id ||
+      !allAnswersCompleted ||
+      isSubmitting ||
+      Object.values(savingQuestionIds).some(Boolean)
+    ) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setSaveError('')
+
+    try {
+      const tentative = await submitTentative(
+        quiz.tentative_id
+      )
+
+      setSubmission(tentative)
+      setQuiz((current) => ({
+        ...current,
+        statut_tentative: tentative?.statut || 'soumise',
+      }))
+      setAttempts((current) => [
+        tentative,
+        ...current.filter(
+          (item) => String(item?.id) !== String(tentative?.id)
+        ),
+      ])
+
+      window.dispatchEvent(
+        new CustomEvent('waterchallenge:data-updated', {
+          detail: {
+            source: 'quiz-submitted',
+            moduleSlug,
+            tentativeId: tentative?.id || quiz.tentative_id,
+          },
+        })
+      )
+    } catch (error) {
+      setSaveError(
+        getApiErrorMessage(
+          error,
+          'Impossible de soumettre le quiz.'
+        )
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handlePreviousQuestion = () => {
     setActiveQuestionIndex(
       (currentIndex) =>
@@ -851,6 +878,8 @@ function Quiz({
   }
 
   const handleRestart = () => {
+    setSubmission(null)
+    hasNotifiedSubmitRef.current = false
     setReloadToken(
       (currentToken) => currentToken + 1
     )
@@ -939,7 +968,7 @@ function Quiz({
   if (questions.length === 0) {
     return (
       <section className="quiz-page">
-        
+
 
         <header className="quiz-page__header">
           <div>
@@ -1024,11 +1053,11 @@ function Quiz({
 
   return (
     <section className="quiz-page">
-      
+
 
       <header className="quiz-page__header">
         <div>
-         
+
 
           <h1>
             Quiz — {module.titre}
@@ -1367,11 +1396,25 @@ function Quiz({
                 Question suivante →
               </button>
             ) : (
-              <span className="quiz-page__submit-hint">
+              <button
+                type="button"
+                className="quiz-page__next"
+                disabled={
+                  !allAnswersCompleted ||
+                  isFinished ||
+                  isSubmitting ||
+                  Object.values(savingQuestionIds).some(Boolean)
+                }
+                onClick={handleSubmitAttempt}
+              >
                 {isFinished
-                  ? '✓ Quiz complet'
-                  : 'Répondez pour terminer le quiz'}
-              </span>
+                  ? '✓ Quiz soumis'
+                  : isSubmitting
+                    ? 'Soumission…'
+                    : allAnswersCompleted
+                      ? 'Soumettre le quiz →'
+                      : 'Répondez à toutes les questions'}
+              </button>
             )}
           </div>
 
@@ -1441,8 +1484,15 @@ function Quiz({
                   </p>
                 ) : (
                   <p>
-                    Toutes vos réponses ont
-                    été enregistrées.
+                    Toutes vos réponses ont été enregistrées.
+                  </p>
+                )}
+
+                {submission && (
+                  <p className="quiz-page__result-points">
+                    Points : <strong>{submission.points_obtenus}</strong>
+                    {' / '}
+                    {submission.points_total}
                   </p>
                 )}
               </div>
@@ -1538,6 +1588,42 @@ function Quiz({
                 }
               )}
             </div>
+          </div>
+
+          <div className="quiz-page__sidebar-card quiz-page__history-card">
+            <h3>Mes tentatives</h3>
+
+            {attempts.length > 0 ? (
+              <div className="quiz-page__history-list">
+                {attempts.slice(0, 3).map((attempt, index) => (
+                  <div key={attempt?.id || index}>
+                    <span>Tentative {attempts.length - index}</span>
+                    <strong>{Number(attempt?.score || 0)}%</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Aucune tentative soumise.</p>
+            )}
+          </div>
+
+          <div className="quiz-page__sidebar-card quiz-page__ranking-card">
+            <h3>Classement</h3>
+
+            {ranking.length > 0 ? (
+              <div className="quiz-page__history-list">
+                {ranking.slice(0, 3).map((entry) => (
+                  <div key={`${entry.rang}-${entry.utilisateur_id}`}>
+                    <span>#{entry.rang} {entry.utilisateur_nom}</span>
+                    <strong>{entry.meilleur_score}%</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Classement encore vide.</p>
+            )}
+
+            {sideDataError && <small>{sideDataError}</small>}
           </div>
 
           <div className="quiz-page__sidebar-card quiz-page__sidebar-card--help">

@@ -6,16 +6,33 @@ from .models import Badge, BadgeUtilisateur, Certificat, ConfigurationNiveau
 
 LEVELS=[('beginner','Débutant'),('apprentice','Apprenti Ambassadeur'),('active','Ambassadeur actif'),('leader','Leader communautaire')]
 
-def synchroniser_progression_module(utilisateur,module):
+def synchroniser_progression_module(utilisateur, module):
+    """Recalcule la progression à partir des actions déjà réalisées."""
     with transaction.atomic():
-        progression,_=ProgressionModule.objects.select_for_update().get_or_create(utilisateur=utilisateur,module=module)
-        avant=progression.est_termine
+        progression, _ = ProgressionModule.objects.select_for_update().get_or_create(
+            utilisateur=utilisateur,
+            module=module,
+        )
         progression.recalculer()
-        if progression.est_termine and not avant:
-            badge,_=Badge.objects.get_or_create(nom=f'Badge — {module.titre}',defaults={'description':f'Module « {module.titre} » terminé avec succès.'})
-            _,cree=BadgeUtilisateur.objects.get_or_create(utilisateur=utilisateur,module=module,defaults={'badge':badge})
+        if progression.est_termine:
+            badge, _ = Badge.objects.get_or_create(
+                nom=f'Badge — {module.titre}',
+                defaults={
+                    'description': f'Module « {module.titre} » terminé avec succès.'
+                },
+            )
+            _, cree = BadgeUtilisateur.objects.get_or_create(
+                utilisateur=utilisateur,
+                module=module,
+                defaults={'badge': badge},
+            )
             if cree:
-                notifier(utilisateur,Notification.Type.BADGE_OBTENU,'Nouveau badge obtenu',f'Vous avez obtenu le badge du module « {module.titre} ».')
+                notifier(
+                    utilisateur,
+                    Notification.Type.BADGE_OBTENU,
+                    'Nouveau badge obtenu',
+                    f'Vous avez obtenu le badge du module « {module.titre} ».',
+                )
             synchroniser_niveau(utilisateur)
         return progression
 

@@ -2358,3 +2358,131 @@ textarea {
     font-size: 11px;
   }
 }
+.activity-detail-btn,
+.activity-cancel-btn,
+.activity-video-link {
+  width: fit-content;
+  margin-top: 1rem;
+}
+
+.activity-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.activity-proof-grid img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 14px;
+}
+
+.activity-validation-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.rewards-certificates-card {
+  margin-top: 1.5rem;
+}
+
+.certificate-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.certificate-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(14, 116, 144, 0.06);
+}
+
+.certificate-list__item div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.certificate-list__item span {
+  opacity: 0.72;
+}
+
+@media (max-width: 640px) {
+  .certificate-list__item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.dashboard-data-warning,
+.dashboard-impact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: rgba(14, 116, 144, 0.07);
+}
+
+.dashboard-data-warning button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+}
+
+.dash-notification-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-notification-read-all {
+  width: auto !important;
+  padding: 0.45rem 0.75rem !important;
+  border-radius: 999px !important;
+  font-size: 0.82rem;
+}
+
+.dash-notification-row {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dash-notification-row.is-unread {
+  background: rgba(14, 116, 144, 0.09);
+}
+
+.dash-notification-row.is-read {
+  opacity: 0.72;
+}
+
+.dash-notification-row h4 {
+  margin: 0 0 0.25rem;
+}
+
+.dash-notification-row small {
+  display: block;
+  margin-top: 0.35rem;
+  opacity: 0.66;
+}
+
+.dash-notification-error {
+  margin-bottom: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 12px;
+  background: rgba(185, 28, 28, 0.08);
+}

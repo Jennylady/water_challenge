@@ -137,9 +137,9 @@ class ListeDefisAmbassadeurView(APIView):
             niveau = request.query_params.get('niveau')
             if niveau:
                 defis = defis.filter(niveau=niveau)
-            module_id = request.query_params.get('module_id')
-            if module_id:
-                defis = defis.filter(module_id=module_id)
+            module_slug = request.query_params.get('module_slug')
+            if module_slug:
+                defis = defis.filter(module__slug=module_slug)
             est_obligatoire = request.query_params.get('est_obligatoire')
             if est_obligatoire is not None:
                 defis = defis.filter(est_obligatoire=_bool(est_obligatoire))
@@ -395,9 +395,9 @@ class ListeDefisAdminView(APIView):
             est_actif = request.query_params.get('est_actif')
             if est_actif is not None:
                 defis = defis.filter(est_actif=_bool(est_actif))
-            module_id = request.query_params.get('module_id')
-            if module_id:
-                defis = defis.filter(module_id=module_id)
+            module_slug = request.query_params.get('module_slug')
+            if module_slug:
+                defis = defis.filter(module__slug=module_slug)
 
             serializer = DefiAdminSerializer(defis, many=True, context={'request': request})
             return reponse_succes('defis', serializer.data)
@@ -424,9 +424,9 @@ class CreerDefiAdminView(APIView):
                 )
 
             module = None
-            module_id = request.data.get('module_id')
-            if module_id:
-                module = Module.objects.filter(pk=module_id).first()
+            module_slug = request.data.get('module_slug')
+            if module_slug:
+                module = Module.objects.filter(slug=module_slug).first()
                 if module is None:
                     return reponse_erreur('Module introuvable.', status.HTTP_404_NOT_FOUND)
 
@@ -477,12 +477,12 @@ class ModifierDefiAdminView(APIView):
             if defi is None:
                 return reponse_erreur('Défi introuvable.', status.HTTP_404_NOT_FOUND)
 
-            if 'module_id' in request.data:
-                module_id = request.data.get('module_id')
-                if module_id in (None, ''):
+            if 'module_slug' in request.data:
+                module_slug = request.data.get('module_slug')
+                if module_slug in (None, ''):
                     defi.module = None
                 else:
-                    module = Module.objects.filter(pk=module_id).first()
+                    module = Module.objects.filter(slug=module_slug).first()
                     if module is None:
                         return reponse_erreur('Module introuvable.', status.HTTP_404_NOT_FOUND)
                     defi.module = module

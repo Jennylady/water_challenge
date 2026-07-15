@@ -1238,3 +1238,33 @@
       0.01ms !important;
   }
 }
+.challenge-details__feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(14, 116, 144, 0.08);
+  color: #155e75;
+  font-weight: 700;
+}
+
+.challenge-details__feedback.is-error {
+  background: rgba(185, 28, 28, 0.08);
+  color: #991b1b;
+}
+
+.challenge-details__feedback button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.challenge-details__primary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}

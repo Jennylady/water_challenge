@@ -137,7 +137,7 @@ class ProgressionModule(models.Model):
     est_lu = models.BooleanField(default=False)
     lu_le = models.DateTimeField(blank=True, null=True)
     est_termine = models.BooleanField(
-        default=False, help_text="Terminé = lecture + quiz réussi + au moins deux défis validés"
+        default=False, help_text="Terminé lorsque les quatre étapes de progression sont acquises, sans ordre imposé"
     )
     termine_le = models.DateTimeField(blank=True, null=True)
 
@@ -164,11 +164,20 @@ class ProgressionModule(models.Model):
         ).count()
 
     @property
+    def details_progression(self):
+        """Progression additive : aucune étape ne dépend d'une autre."""
+        challenges_termines = self.challenges_termines
+        return {
+            'lecture': 25 if self.est_lu else 0,
+            'quiz': 25 if self.quiz_reussi else 0,
+            'challenges': min(challenges_termines, 2) * 25,
+            'challenges_termines': challenges_termines,
+        }
+
+    @property
     def pourcentage(self):
-        lecture = 25 if self.est_lu else 0
-        quiz = 25 if self.quiz_reussi else 0
-        challenges = min(self.challenges_termines, 2) * 25
-        return lecture + quiz + challenges
+        details = self.details_progression
+        return details['lecture'] + details['quiz'] + details['challenges']
 
     def recalculer(self, sauvegarder=True):
         termine = self.pourcentage >= 100

@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 class Defi(models.Model):
-    """Mission concrète réalisée par un ambassadeur après la validation d'un quiz."""
+    """Mission concrète réalisable indépendamment de la lecture et du quiz."""
 
     class Niveau(models.TextChoices):
         DEBUTANT = 'debutant', 'Débutant'
@@ -20,7 +20,7 @@ class Defi(models.Model):
         blank=True,
         null=True,
         related_name='defis',
-        help_text="Module dont le quiz débloque ce défi. Laisser vide pour un défi libre.",
+        help_text="Module auquel le défi est rattaché. Le quiz ne conditionne pas son accès.",
     )
     titre = models.CharField(max_length=200)
     description = models.TextField(help_text="Description détaillée de la mission")
@@ -39,7 +39,7 @@ class Defi(models.Model):
     video_obligatoire = models.BooleanField(default=False)
     est_obligatoire = models.BooleanField(
         default=True,
-        help_text="Un défi obligatoire doit être validé pour débloquer le module suivant.",
+        help_text="Indique que ce défi compte dans la progression obligatoire de l’utilisateur.",
     )
 
     est_actif = models.BooleanField(default=True)

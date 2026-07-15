@@ -263,16 +263,57 @@ def soumettre_tentative(*, tentative, utilisateur):
         ])
 
         if est_reussi:
-            progression, _ = ProgressionModule.objects.select_for_update().get_or_create(
-                utilisateur=utilisateur,
-                module=tentative.quiz.module,
-            )
-            # Le quiz représente 25 %. Le module n'est terminé qu'après lecture
-            # et validation d'au moins deux défis associés.
-            progression.recalculer()
             from apps.recompenses.services import synchroniser_progression_module
             transaction.on_commit(
                 lambda: synchroniser_progression_module(utilisateur, tentative.quiz.module)
             )
 
         return tentative
+
+
+def charger_progressions_utilisateur(utilisateur, modules):
+    """
+    Reconstitue la progression à partir des actions déjà enregistrées.
+
+    La lecture, la réussite du quiz et les défis terminés sont indépendants :
+    aucune étape ne sert de prérequis à une autre.
+    """
+    modules = list(modules)
+    if not modules:
+        return {}
+
+    module_ids = {module.id for module in modules}
+    progressions = {
+        progression.module_id: progression
+        for progression in ProgressionModule.objects.filter(
+            utilisateur_id=utilisateur.id,
+            module_id__in=module_ids,
+        )
+    }
+
+    modules_avec_activite = set(
+        TentativeQuiz.objects.filter(
+            utilisateur_id=utilisateur.id,
+            est_reussi=True,
+            quiz__module_id__in=module_ids,
+        ).values_list('quiz__module_id', flat=True)
+    )
+    modules_avec_activite.update(
+        utilisateur.defis_utilisateur.filter(
+            statut='termine',
+            defi__module_id__in=module_ids,
+        ).values_list('defi__module_id', flat=True)
+    )
+
+    modules_par_id = {module.id: module for module in modules}
+    for module_id in modules_avec_activite:
+        if module_id not in progressions:
+            progression, _ = ProgressionModule.objects.get_or_create(
+                utilisateur_id=utilisateur.id,
+                module=modules_par_id[module_id],
+            )
+            progressions[module_id] = progression
+
+    for progression in progressions.values():
+        progression.recalculer()
+    return progressions

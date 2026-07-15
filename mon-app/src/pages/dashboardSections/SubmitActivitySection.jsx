@@ -5,11 +5,8 @@ import {
   useState,
 } from 'react'
 
-import api from '../../api/api'
-import { getCookie } from '../../utils/cookies'
-
-const CHALLENGES_ENDPOINT =
-  '/challenges/defis/'
+import { getApiErrorMessage } from '../../api/api'
+import { challengesApi } from '../../api/services'
 
 const STORAGE_KEYS = {
   SELECTED_CHALLENGE:
@@ -214,7 +211,6 @@ const mergeChallenges = (
 
 function SubmitActivitySection({
   t,
-  data,
   onAddActivity,
 }) {
   const [
@@ -239,6 +235,11 @@ function SubmitActivitySection({
     isLoading,
     setIsLoading,
   ] = useState(true)
+
+  const [
+    isLoadingChallengeDetail,
+    setIsLoadingChallengeDetail,
+  ] = useState(false)
 
   const [
     isSubmitting,
@@ -332,25 +333,7 @@ function SubmitActivitySection({
     [t]
   )
 
-  const fallbackChallenges =
-    useMemo(() => {
-      return Array.isArray(
-        data?.challenges
-      )
-        ? data.challenges
-        : []
-    }, [data?.challenges])
 
-  const getAccessToken =
-    useCallback(() => {
-      return (
-        getCookie(
-          'accessToken'
-        ) ||
-        getCookie('access') ||
-        ''
-      )
-    }, [])
 
   const clearStoredChallenge =
     useCallback(() => {
@@ -382,192 +365,45 @@ function SubmitActivitySection({
       setError('')
 
       try {
-        const accessToken =
-          getAccessToken()
+        const apiChallenges = await challengesApi.list()
+        const mergedChallenges = mergeChallenges(apiChallenges)
 
-        const response =
-          await api.get(
-            CHALLENGES_ENDPOINT,
-            {
-              headers:
-                accessToken
-                  ? {
-                      Authorization:
-                        `Bearer ${accessToken}`,
-                    }
-                  : {},
-            }
+        setChallenges(mergedChallenges)
+
+        if (initialChallengeId) {
+          const challengeExists = mergedChallenges.some(
+            (challenge) =>
+              getChallengeId(challenge) === initialChallengeId
           )
-
-        const responseData =
-          response?.data || {}
-
-        if (
-          responseData.success ===
-          false
-        ) {
-          throw new Error(
-            responseData.erreur ||
-              responseData.detail ||
-              responseData.message ||
-              'Impossible de charger les challenges.'
-          )
-        }
-
-        const apiChallenges =
-          Array.isArray(
-            responseData.defis
-          )
-            ? responseData.defis
-            : Array.isArray(
-                responseData
-                  .challenges
-              )
-              ? responseData
-                  .challenges
-              : Array.isArray(
-                  responseData
-                    .results
-                )
-                ? responseData
-                    .results
-                : []
-
-        /*
-         * L'API est placée après les données locales :
-         * ses vrais titres remplacent donc les titres
-         * éventuellement statiques de data.challenges.
-         */
-        const mergedChallenges =
-          mergeChallenges(
-            fallbackChallenges,
-            apiChallenges
-          )
-
-        setChallenges(
-          mergedChallenges
-        )
-
-        if (
-          initialChallengeId
-        ) {
-          const challengeExists =
-            mergedChallenges.some(
-              (challenge) =>
-                getChallengeId(
-                  challenge
-                ) ===
-                initialChallengeId
-            )
 
           if (challengeExists) {
-            setForm(
-              (previous) => ({
-                ...previous,
-
-                challengeId:
-                  initialChallengeId,
-              })
-            )
-
-            setSelectedFromChallenges(
-              true
-            )
+            setForm((previous) => ({
+              ...previous,
+              challengeId: initialChallengeId,
+            }))
+            setSelectedFromChallenges(true)
           } else {
-            /*
-             * Le challenge enregistré n'existe plus :
-             * on affiche alors la liste normalement.
-             */
             clearStoredChallenge()
-
-            setSelectedFromChallenges(
-              false
-            )
-
-            setForm(
-              (previous) => ({
-                ...previous,
-                challengeId: '',
-              })
-            )
+            setSelectedFromChallenges(false)
+            setForm((previous) => ({ ...previous, challengeId: '' }))
           }
         }
       } catch (requestError) {
-        console.error(
-          'Erreur de chargement des challenges :',
-          requestError
+        console.error('Erreur de chargement des challenges :', requestError)
+        setChallenges([])
+        clearStoredChallenge()
+        setSelectedFromChallenges(false)
+        setForm((previous) => ({ ...previous, challengeId: '' }))
+        setError(
+          getApiErrorMessage(
+            requestError,
+            'Impossible de charger les challenges.'
+          )
         )
-
-        const localChallenges =
-          mergeChallenges(
-            fallbackChallenges
-          )
-
-        setChallenges(
-          localChallenges
-        )
-
-        const storedChallengeExists =
-          localChallenges.some(
-            (challenge) =>
-              getChallengeId(
-                challenge
-              ) ===
-              initialChallengeId
-          )
-
-        if (
-          initialChallengeId &&
-          storedChallengeExists
-        ) {
-          setForm(
-            (previous) => ({
-              ...previous,
-
-              challengeId:
-                initialChallengeId,
-            })
-          )
-        } else {
-          clearStoredChallenge()
-
-          setSelectedFromChallenges(
-            false
-          )
-
-          setForm(
-            (previous) => ({
-              ...previous,
-              challengeId: '',
-            })
-          )
-        }
-
-        if (
-          localChallenges.length ===
-          0
-        ) {
-          const responseData =
-            requestError?.response
-              ?.data
-
-          setError(
-            responseData?.erreur ||
-              responseData?.detail ||
-              responseData?.message ||
-              requestError?.message ||
-              'Impossible de charger les challenges.'
-          )
-        }
       } finally {
         setIsLoading(false)
       }
-    }, [
-      clearStoredChallenge,
-      fallbackChallenges,
-      getAccessToken,
-      initialChallengeId,
-    ])
+    }, [clearStoredChallenge, initialChallengeId])
 
   useEffect(() => {
     loadChallenges()
@@ -594,6 +430,48 @@ function SubmitActivitySection({
       challenges,
       form.challengeId,
     ])
+
+  useEffect(() => {
+    const challengeId = normalizeId(form.challengeId)
+
+    if (!challengeId) {
+      return undefined
+    }
+
+    let isCurrent = true
+    setIsLoadingChallengeDetail(true)
+
+    challengesApi
+      .get(challengeId)
+      .then((detail) => {
+        if (!isCurrent) {
+          return
+        }
+
+        setChallenges((previousChallenges) =>
+          mergeChallenges(previousChallenges, [detail])
+        )
+      })
+      .catch((requestError) => {
+        if (isCurrent) {
+          setError(
+            getApiErrorMessage(
+              requestError,
+              'Impossible de charger les règles de ce challenge.'
+            )
+          )
+        }
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setIsLoadingChallengeDetail(false)
+        }
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [form.challengeId])
 
   const minimumPhotos =
     Math.max(
@@ -805,92 +683,29 @@ function SubmitActivitySection({
         setMessage('')
 
         try {
-          const accessToken =
-            getAccessToken()
+          const payload = new FormData()
 
-          if (!accessToken) {
-            throw new Error(
-              'Votre session a expiré. Veuillez vous reconnecter.'
-            )
-          }
-
-          const payload =
-            new FormData()
-
-          payload.append(
-            'rapport',
-            form.description.trim()
-          )
-
-          payload.append(
-            'date_activite',
-            form.date
-          )
-
-          payload.append(
-            'lieu',
-            form.place.trim()
-          )
-
+          payload.append('rapport', form.description.trim())
+          payload.append('date_activite', form.date)
+          payload.append('lieu', form.place.trim())
           payload.append(
             'nombre_personnes_sensibilisees',
-            String(
-              Number(
-                form.people
-              ) || 0
-            )
+            String(Number(form.people) || 0)
           )
 
-          photos.forEach(
-            (photo) => {
-              payload.append(
-                'photos',
-                photo
-              )
-            }
-          )
+          photos.forEach((photo) => {
+            payload.append('photos', photo)
+          })
 
           if (video) {
-            payload.append(
-              'video',
-              video
-            )
+            payload.append('video', video)
           }
 
-          const response =
-            await api.post(
-              `/challenges/defis/${encodeURIComponent(
-                form.challengeId
-              )}/soumettre/`,
+          const submission = await challengesApi.submit(
+            form.challengeId,
+            payload
+          )
 
-              payload,
-
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${accessToken}`,
-                },
-              }
-            )
-
-          const responseData =
-            response?.data || {}
-
-          if (
-            responseData.success ===
-            false
-          ) {
-            throw new Error(
-              responseData.erreur ||
-                responseData.detail ||
-                responseData.message ||
-                'Impossible d’envoyer la soumission.'
-            )
-          }
-
-          const submission =
-            responseData.soumission ||
-            {}
 
           if (
             typeof onAddActivity ===
@@ -953,9 +768,12 @@ function SubmitActivitySection({
             })
           }
 
-          setMessage(
-            responseData.message ||
-              labels.saved
+          setMessage(labels.saved)
+
+          window.dispatchEvent(
+            new CustomEvent('waterchallenge:data-updated', {
+              detail: { source: 'submission-created' },
+            })
           )
 
           clearStoredChallenge()
@@ -998,16 +816,11 @@ function SubmitActivitySection({
             requestError
           )
 
-          const responseData =
-            requestError?.response
-              ?.data
-
           setError(
-            responseData?.erreur ||
-              responseData?.detail ||
-              responseData?.message ||
-              requestError?.message ||
+            getApiErrorMessage(
+              requestError,
               'Impossible d’envoyer la soumission.'
+            )
           )
         } finally {
           setIsSubmitting(false)
@@ -1016,7 +829,6 @@ function SubmitActivitySection({
       [
         clearStoredChallenge,
         form,
-        getAccessToken,
         labels.saved,
         onAddActivity,
         photos,
@@ -1091,6 +903,7 @@ function SubmitActivitySection({
                 }
                 disabled={
                   isLoading ||
+                  isLoadingChallengeDetail ||
                   selectedFromChallenges
                 }
                 required

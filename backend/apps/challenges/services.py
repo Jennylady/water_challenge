@@ -9,7 +9,6 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 
 from apps.accounts.user.models import Profile
-from apps.formation.models import Module, ProgressionModule, TentativeQuiz
 
 from .models import Defi, DefiUtilisateur, PhotoSoumission, SoumissionActivite, Validation
 from .signals import defi_debloque, soumission_envoyee, soumission_traitee
@@ -79,25 +78,21 @@ def niveau_defi_autorise(utilisateur, defi):
 
 
 def quiz_reussi_pour_defi(utilisateur, defi):
-    if defi.module_id is None:
-        return True
-    return TentativeQuiz.objects.filter(
-        utilisateur_id=utilisateur.id,
-        quiz__module_id=defi.module_id,
-        est_reussi=True,
-    ).exists()
+    """Compatibilité : le quiz n'est plus un prérequis pour un défi."""
+    return True
 
 
-def defi_peut_etre_debloque(utilisateur, defi, *, rang_utilisateur=None, modules_reussis=None):
+def defi_peut_etre_debloque(
+    utilisateur,
+    defi,
+    *,
+    rang_utilisateur=None,
+):
+    """Un défi dépend uniquement de son ouverture et du niveau de l'utilisateur."""
     if rang_utilisateur is None:
         rang_utilisateur = rang_niveau_utilisateur(utilisateur)
     niveau_autorise = NIVEAU_RANG_DEFI.get(defi.niveau, 0) <= rang_utilisateur
-    if modules_reussis is None:
-        quiz_reussi = quiz_reussi_pour_defi(utilisateur, defi)
-    else:
-        quiz_reussi = defi.module_id is None or defi.module_id in modules_reussis
-    return defi.est_accessible and niveau_autorise and quiz_reussi
-
+    return defi.est_accessible and niveau_autorise
 
 def synchroniser_defis_utilisateur(utilisateur):
     """
@@ -117,11 +112,6 @@ def synchroniser_defis_utilisateur(utilisateur):
     maintenant = timezone.now()
     debloques = []
     rang_utilisateur = rang_niveau_utilisateur(utilisateur)
-    modules_reussis = set(
-        TentativeQuiz.objects.filter(
-            utilisateur_id=utilisateur.id, est_reussi=True
-        ).values_list('quiz__module_id', flat=True)
-    )
 
     for defi in defis:
         suivi = suivis_existants.get(defi.id)
@@ -129,7 +119,6 @@ def synchroniser_defis_utilisateur(utilisateur):
             utilisateur,
             defi,
             rang_utilisateur=rang_utilisateur,
-            modules_reussis=modules_reussis,
         )
 
         if suivi is None:
@@ -187,53 +176,25 @@ def synchroniser_defis_utilisateur(utilisateur):
 
 
 def debloquer_defis_du_module(utilisateur, module):
-    """Débloque immédiatement tous les défis publiés liés au module dont le quiz est réussi."""
-    maintenant = timezone.now()
-    defis = Defi.objects.filter(
-        module_id=module.id,
-        est_actif=True,
-        est_publie=True,
-    )
-    debloques = []
-    rang_utilisateur = rang_niveau_utilisateur(utilisateur)
-
-    for defi in defis:
-        if not (
-            defi.est_accessible
-            and NIVEAU_RANG_DEFI.get(defi.niveau, 0) <= rang_utilisateur
-        ):
-            continue
-        suivi, cree = DefiUtilisateur.objects.get_or_create(
+    """
+    Compatibilité avec les anciens appels : synchronise les défis du module sans
+    vérifier la réussite d'un quiz.
+    """
+    avant = {
+        suivi.defi_id: suivi.statut
+        for suivi in DefiUtilisateur.objects.filter(
             utilisateur_id=utilisateur.id,
-            defi=defi,
-            defaults={
-                'statut': DefiUtilisateur.Statut.DISPONIBLE,
-                'debloque_le': maintenant,
-            },
+            defi__module=module,
         )
-        if cree:
-            debloques.append(defi)
-        elif suivi.statut == DefiUtilisateur.Statut.VERROUILLE:
-            suivi.statut = DefiUtilisateur.Statut.DISPONIBLE
-            suivi.debloque_le = suivi.debloque_le or maintenant
-            suivi.save(update_fields=['statut', 'debloque_le', 'modifie_le'])
-            debloques.append(defi)
-        elif suivi.debloque_le is None:
-            suivi.debloque_le = maintenant
-            suivi.save(update_fields=['debloque_le', 'modifie_le'])
-            debloques.append(defi)
-
-    for defi in debloques:
-        defi_debloque.send_robust(sender=DefiUtilisateur, utilisateur=utilisateur, defi=defi)
-        _executer_hook(
-            'CHALLENGES_NOTIFICATION_HANDLER',
-            evenement='defi_debloque',
-            utilisateur=utilisateur,
-            defi=defi,
-        )
-
-    return debloques
-
+    }
+    suivis = synchroniser_defis_utilisateur(utilisateur)
+    return [
+        suivi.defi
+        for defi_id, suivi in suivis.items()
+        if suivi.defi.module_id == module.id
+        and suivi.statut == DefiUtilisateur.Statut.DISPONIBLE
+        and avant.get(defi_id) != DefiUtilisateur.Statut.DISPONIBLE
+    ]
 
 def demarrer_defi(utilisateur, defi):
     if not defi.est_accessible:
@@ -247,7 +208,7 @@ def demarrer_defi(utilisateur, defi):
         ).first()
         if suivi is None or suivi.statut == DefiUtilisateur.Statut.VERROUILLE:
             raise RegleMetierChallenge(
-                "Ce défi est verrouillé. Validez d'abord le quiz du module associé."
+                "Ce défi n'est pas disponible pour votre niveau ou durant cette période."
             )
         if suivi.statut == DefiUtilisateur.Statut.TERMINE:
             raise RegleMetierChallenge("Ce défi est déjà terminé.")
@@ -340,7 +301,7 @@ def creer_soumission(
         ).first()
         if suivi is None or suivi.statut == DefiUtilisateur.Statut.VERROUILLE:
             raise RegleMetierChallenge(
-                "Ce défi est verrouillé. Validez d'abord le quiz du module associé."
+                "Ce défi n'est pas disponible pour votre niveau ou durant cette période."
             )
         if suivi.statut == DefiUtilisateur.Statut.TERMINE:
             raise RegleMetierChallenge("Ce défi a déjà été validé.")
@@ -523,90 +484,15 @@ def valider_soumission(*, soumission, validateur, decision, commentaire=None, po
     return validation
 
 
-def _modules_ordonnes():
-    modules = list(Module.objects.filter(est_publie=True))
-    return sorted(
-        modules,
-        key=lambda module: (
-            NIVEAU_RANG_MODULE.get(module.niveau, 999),
-            module.ordre,
-            module.id,
-        ),
-    )
-
-
-def module_precedent(module):
-    modules = _modules_ordonnes()
-    ids = [item.id for item in modules]
-    try:
-        index = ids.index(module.id)
-    except ValueError:
-        return None
-    return modules[index - 1] if index > 0 else None
-
-
-def module_suivant(module):
-    modules = _modules_ordonnes()
-    ids = [item.id for item in modules]
-    try:
-        index = ids.index(module.id)
-    except ValueError:
-        return None
-    return modules[index + 1] if index + 1 < len(modules) else None
-
-
 def est_module_debloque_pour_utilisateur(utilisateur, module):
     """
-    Règle du parcours :
-    - le premier module est disponible ;
-    - le quiz du module précédent doit être réussi ;
-    - tous ses défis obligatoires publiés doivent être validés ;
-    - le niveau du profil doit autoriser le module cible.
-
-    Cette fonction est utilisée par le patch d'intégration de formation fourni dans le ZIP.
+    Les modules ne dépendent plus du module précédent, d'un quiz ou d'un défi.
+    Seuls leur état d'ouverture et le niveau de l'utilisateur sont pris en compte.
     """
     profile = _profile_utilisateur(utilisateur)
     rang_profile = NIVEAU_RANG_PROFILE.get(profile.level, 0)
     rang_module = NIVEAU_RANG_MODULE.get(module.niveau, 0)
-    if rang_module > rang_profile:
-        return False
-
-    progression_existante = ProgressionModule.objects.filter(
-        utilisateur_id=utilisateur.id,
-        module=module,
-    ).first()
-    if progression_existante and (progression_existante.est_lu or progression_existante.est_termine):
-        return True
-
-    precedent = module_precedent(module)
-    if precedent is None:
-        return True
-
-    progression_precedente = ProgressionModule.objects.filter(
-        utilisateur_id=utilisateur.id,
-        module=precedent,
-        est_termine=True,
-    ).exists()
-    if not progression_precedente:
-        return False
-
-    defis_obligatoires = Defi.objects.filter(
-        module=precedent,
-        est_actif=True,
-        est_publie=True,
-        est_obligatoire=True,
-    )
-    if not defis_obligatoires.exists():
-        return True
-
-    total = defis_obligatoires.count()
-    termines = DefiUtilisateur.objects.filter(
-        utilisateur_id=utilisateur.id,
-        defi__in=defis_obligatoires,
-        statut=DefiUtilisateur.Statut.TERMINE,
-    ).count()
-    return termines == total
-
+    return module.est_accessible and rang_module <= rang_profile
 
 def _executer_hook(nom_setting, **kwargs):
     chemin = getattr(settings, nom_setting, None)

@@ -4,24 +4,11 @@ import {
   useState,
 } from 'react'
 
-import axios from 'axios'
-import {
-  motion,
-  AnimatePresence,
-} from 'framer-motion'
+import { getApiErrorMessage } from '../../api/api'
+import { accountApi } from '../../api/services'
+import { motion, AnimatePresence } from 'framer-motion'
+
 import './ProfileSection.css'
-
-// Ajuste si besoin selon ton client axios / stockage du token
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || ''
-
-function getAuthToken() {
-  return (
-    localStorage.getItem('access') ||
-    localStorage.getItem('accessToken') ||
-    ''
-  )
-}
 
 function toDateInputValue(value) {
   if (!value) return ''
@@ -223,7 +210,6 @@ function ProfileSection({
   const editableFields = [
     { key: 'prenom', label: labels.firstName, type: 'text' },
     { key: 'nom', label: labels.lastName, type: 'text' },
-    { key: 'email', label: labels.email, type: 'email' },
     { key: 'telephone', label: labels.phone, type: 'tel' },
     { key: 'birthDate', label: labels.birthDate, type: 'date' },
     { key: 'faritra', label: labels.region, type: 'text' },
@@ -315,39 +301,82 @@ function ProfileSection({
     setFormMessage({ type: null, text: '' })
 
     try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/auth/me/profile/update/`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${getAuthToken()}`,
-          },
-        }
-      )
+      const payload = new FormData()
+      const fieldMap = {
+        prenom: 'first_name',
+        nom: 'last_name',
+        telephone: 'phone',
+        birthDate: 'birth_date',
+        faritra: 'faritra',
+        fivondronana: 'fivondronana',
+      }
 
-      const updatedUser =
-        response?.data?.user ||
-        response?.data?.data ||
-        { ...safeUser, ...formData }
+      Object.entries(fieldMap).forEach(([localField, apiField]) => {
+        const value = formData[localField]
+        if (value !== undefined && value !== null) {
+          payload.append(apiField, value)
+        }
+      })
+
+      const responseData = await accountApi.updateProfile(payload)
+      const responseUser = responseData?.user || {}
+      const responseProfile =
+        responseData?.profile || responseUser?.profile || {}
+
+      const updatedUser = {
+        ...safeUser,
+        prenom: responseUser.first_name ?? formData.prenom,
+        nom: responseUser.last_name ?? formData.nom,
+        email: responseUser.email ?? safeUser.email,
+        telephone: responseUser.phone ?? formData.telephone,
+        birthDate: responseUser.birth_date ?? formData.birthDate,
+        faritra: responseProfile.faritra ?? formData.faritra,
+        fivondronana:
+          responseProfile.fivondronana ?? formData.fivondronana,
+        scoutType: responseProfile.scout_type ?? safeUser.scoutType,
+        section: responseProfile.section ?? safeUser.section,
+        position: responseProfile.position ?? safeUser.position,
+        niveau: responseProfile.level ?? safeUser.niveau,
+        badge: responseProfile.current_badge ?? safeUser.badge,
+        points: responseProfile.points ?? safeUser.points,
+        progression: responseProfile.progression ?? safeUser.progression,
+      }
 
       setLocalUser(updatedUser)
 
       if (typeof onProfileUpdate === 'function') {
-        onProfileUpdate(updatedUser)
+        onProfileUpdate({
+          ...responseUser,
+          profile: responseProfile,
+        })
       }
 
       setFormMessage({
         type: 'success',
-        text: response?.data?.message || labels.successMsg,
+        text: responseData?.message || labels.successMsg,
       })
       setIsEditing(false)
     } catch (error) {
       const responseData = error?.response?.data
+      const apiErrors = responseData?.errors || {}
+      const reverseFieldMap = {
+        first_name: 'prenom',
+        last_name: 'nom',
+        phone: 'telephone',
+        birth_date: 'birthDate',
+        faritra: 'faritra',
+        fivondronana: 'fivondronana',
+      }
+      const normalizedErrors = {}
 
-      setFieldErrors(responseData?.errors || {})
+      Object.entries(apiErrors).forEach(([field, value]) => {
+        normalizedErrors[reverseFieldMap[field] || field] = value
+      })
+
+      setFieldErrors(normalizedErrors)
       setFormMessage({
         type: 'error',
-        text: responseData?.message || labels.errorMsg,
+        text: getApiErrorMessage(error, labels.errorMsg),
       })
     } finally {
       setSaving(false)

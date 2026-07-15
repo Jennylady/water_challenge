@@ -133,7 +133,7 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
 
 class QuizAmbassadeurSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source='uuid', read_only=True)
-    module_id = serializers.UUIDField(source='module.uuid', read_only=True)
+    module_slug = serializers.SlugField(source='module.slug', read_only=True)
     tentative_id = serializers.SerializerMethodField()
     statut_tentative = serializers.SerializerMethodField()
     questions_repondues = serializers.SerializerMethodField()
@@ -142,7 +142,7 @@ class QuizAmbassadeurSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = [
-            'id', 'module_id', 'titre', 'score_de_reussite',
+            'id', 'module_slug', 'titre', 'score_de_reussite',
             'nombre_questions', 'correction_automatique',
             'tentative_id', 'statut_tentative', 'questions_repondues', 'questions',
         ]
@@ -182,7 +182,7 @@ class QuizAmbassadeurSerializer(serializers.ModelSerializer):
 
 class QuizAdminSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source='uuid', read_only=True)
-    module_id = serializers.UUIDField(source='module.uuid', read_only=True)
+    module_slug = serializers.SlugField(source='module.slug', read_only=True)
     points_total_banque = serializers.IntegerField(read_only=True)
     nombre_questions_banque = serializers.IntegerField(read_only=True)
     questions = serializers.SerializerMethodField()
@@ -190,7 +190,7 @@ class QuizAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quiz
         fields = [
-            'id', 'module_id', 'titre', 'score_de_reussite',
+            'id', 'module_slug', 'titre', 'score_de_reussite',
             'nombre_questions', 'correction_automatique',
             'nombre_questions_banque', 'points_total_banque', 'questions',
         ]
@@ -220,6 +220,9 @@ class ModuleListeSerializer(serializers.ModelSerializer):
         ]
 
     def _progression(self, obj):
+        progressions = self.context.get('progressions')
+        if progressions is not None:
+            return progressions.get(obj.id)
         utilisateur = self.context.get('utilisateur')
         if utilisateur is None:
             return None
@@ -236,14 +239,19 @@ class ModuleListeSerializer(serializers.ModelSerializer):
     def get_progression(self, obj):
         progression = self._progression(obj)
         if progression is None:
-            return {'pourcentage': 0, 'lecture': 0, 'quiz': 0, 'challenges': 0, 'challenges_termines': 0}
-        nb = progression.challenges_termines
+            return {
+                'pourcentage': 0,
+                'lecture': 0,
+                'quiz': 0,
+                'challenges': 0,
+                'challenges_termines': 0,
+                'est_termine': False,
+            }
+        details = progression.details_progression
         return {
             'pourcentage': progression.pourcentage,
-            'lecture': 25 if progression.est_lu else 0,
-            'quiz': 25 if progression.quiz_reussi else 0,
-            'challenges': min(nb, 2) * 25,
-            'challenges_termines': nb,
+            **details,
+            'est_termine': progression.est_termine,
         }
 
 
@@ -299,15 +307,24 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
         return bool(progression and progression.est_termine)
 
     def get_quiz_disponible(self, obj):
-        progression = self._progression()
-        return bool(progression and progression.est_lu and hasattr(obj, 'quiz'))
+        return hasattr(obj, 'quiz')
 
     def get_progression(self, obj):
         progression = self._progression()
         if progression is None:
-            return {'pourcentage': 0, 'lecture': 0, 'quiz': 0, 'challenges': 0, 'challenges_termines': 0}
-        nb = progression.challenges_termines
-        return {'pourcentage': progression.pourcentage, 'lecture': 25 if progression.est_lu else 0, 'quiz': 25 if progression.quiz_reussi else 0, 'challenges': min(nb, 2) * 25, 'challenges_termines': nb}
+            return {
+                'pourcentage': 0,
+                'lecture': 0,
+                'quiz': 0,
+                'challenges': 0,
+                'challenges_termines': 0,
+                'est_termine': False,
+            }
+        return {
+            'pourcentage': progression.pourcentage,
+            **progression.details_progression,
+            'est_termine': progression.est_termine,
+        }
 
 
 class ModuleAdminSerializer(serializers.ModelSerializer):
@@ -395,7 +412,7 @@ class ReponseQuizSerializer(serializers.ModelSerializer):
 class TentativeQuizSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source='uuid', read_only=True)
     quiz_id = serializers.UUIDField(source='quiz.uuid', read_only=True)
-    module_id = serializers.UUIDField(source='quiz.module.uuid', read_only=True)
+    module_slug = serializers.SlugField(source='quiz.module.slug', read_only=True)
     reponses = serializers.SerializerMethodField()
     nombre_questions = serializers.SerializerMethodField()
     nombre_reponses = serializers.SerializerMethodField()
@@ -403,7 +420,7 @@ class TentativeQuizSerializer(serializers.ModelSerializer):
     class Meta:
         model = TentativeQuiz
         fields = [
-            'id', 'quiz_id', 'module_id', 'statut', 'score',
+            'id', 'quiz_id', 'module_slug', 'statut', 'score',
             'points_obtenus', 'points_total', 'est_reussi',
             'nombre_questions', 'nombre_reponses', 'cree_le', 'soumise_le', 'reponses',
         ]

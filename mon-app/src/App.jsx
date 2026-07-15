@@ -6,6 +6,7 @@ import SignupPage from './pages/SignupPage'
 import ConfirmEmail from './pages/ConfirmEmail'
 import Dashboard from './pages/Dashboard'
 
+import { accountApi } from './api/services'
 import { getCookie, deleteCookie } from './utils/cookies'
 
 import './App.css'
@@ -14,7 +15,8 @@ const PROTECTED_ROUTES = ['dashboard']
 const CURRENT_USER_KEY = 'waterChallengeCurrentUser'
 
 function App() {
-  const isAuthenticated = () => Boolean(getCookie('accessToken'))
+  const isAuthenticated = () =>
+    Boolean(getCookie('accessToken') || getCookie('refreshToken'))
 
   const getInitialPage = () => {
     const pathname = window.location.pathname
@@ -23,11 +25,17 @@ function App() {
       return 'confirm-email'
     }
 
+    if (
+      pathname === '/dashboard' ||
+      pathname.startsWith('/dashboard/')
+    ) {
+      return 'dashboard'
+    }
+
     const routes = {
       '/': 'landing',
       '/login': 'login',
       '/signup': 'signup',
-      '/dashboard': 'dashboard',
     }
 
     return routes[pathname] || 'landing'
@@ -72,6 +80,10 @@ function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     return resolveAllowedPage(getInitialPage())
   })
+
+  const [isResolvingSession, setIsResolvingSession] = useState(
+    () => isAuthenticated()
+  )
 
   const updateBrowserUrl = (page, replace = false) => {
     const routes = {
@@ -120,17 +132,73 @@ function App() {
     updateBrowserUrl('dashboard', true)
   }
 
+  const handleUserUpdate = (updatedUser) => {
+    if (!updatedUser) {
+      return
+    }
+
+    localStorage.setItem(
+      CURRENT_USER_KEY,
+      JSON.stringify(updatedUser)
+    )
+    setUser(updatedUser)
+  }
+
   const handleLogout = () => {
     localStorage.removeItem(CURRENT_USER_KEY)
     localStorage.removeItem('user')
 
     deleteCookie('accessToken')
     deleteCookie('refreshToken')
+    deleteCookie('access')
+    deleteCookie('refresh')
 
     setUser(null)
     setCurrentPage('landing')
     updateBrowserUrl('landing', true)
   }
+
+  useEffect(() => {
+    let isMounted = true
+
+    const restoreAuthenticatedUser = async () => {
+      if (!isAuthenticated()) {
+        if (isMounted) {
+          setIsResolvingSession(false)
+        }
+        return
+      }
+
+      try {
+        const authenticatedUser = await accountApi.me()
+
+        if (!isMounted) {
+          return
+        }
+
+        localStorage.setItem(
+          CURRENT_USER_KEY,
+          JSON.stringify(authenticatedUser)
+        )
+        setUser(authenticatedUser)
+      } catch (error) {
+        console.error(
+          "Impossible de restaurer la session utilisateur :",
+          error
+        )
+      } finally {
+        if (isMounted) {
+          setIsResolvingSession(false)
+        }
+      }
+    }
+
+    restoreAuthenticatedUser()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -150,6 +218,26 @@ function App() {
       window.removeEventListener(
         'popstate',
         handlePopState
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      handleLogout()
+      setCurrentPage('login')
+      updateBrowserUrl('login', true)
+    }
+
+    window.addEventListener(
+      'waterchallenge:session-expired',
+      handleSessionExpired
+    )
+
+    return () => {
+      window.removeEventListener(
+        'waterchallenge:session-expired',
+        handleSessionExpired
       )
     }
   }, [])
@@ -190,11 +278,21 @@ function App() {
 
       {currentPage === 'dashboard' &&
         isAuthenticated() &&
+        isResolvingSession &&
+        !user && (
+          <div className="app-session-loading" role="status">
+            <span className="app-session-spinner" aria-hidden="true" />
+            <p>Récupération de votre espace…</p>
+          </div>
+        )}
+
+      {currentPage === 'dashboard' &&
+        isAuthenticated() &&
         user && (
           <Dashboard
             user={user}
             onLogout={handleLogout}
-            onNavigate={handleNavigate}
+            onUserUpdate={handleUserUpdate}
           />
         )}
     </div>

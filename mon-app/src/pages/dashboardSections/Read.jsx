@@ -1,17 +1,18 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+
+import api, { getApiErrorMessage } from '../../api/api'
+import { formationApi } from '../../api/services'
+import { buildDashboardUrl } from '../../utils/dashboardRoutes'
 
 import './Read.css'
 
 const getModuleSlug = (module) =>
-  String(
-    module?.slug ||
-      module?.id ||
-      'module'
-  )
+  String(module?.slug || '').trim()
 
 const getLessonTitle = (
   lesson,
@@ -49,15 +50,32 @@ const getLessonIllustrations = (
     return []
   }
 
-  return [...illustrations].sort(
-    (firstIllustration, secondIllustration) =>
-      Number(
-        firstIllustration?.ordre ?? 0
-      ) -
-      Number(
-        secondIllustration?.ordre ?? 0
-      )
-  )
+  return illustrations
+    .flatMap((illustration) => {
+      if (Array.isArray(illustration?.images)) {
+        return illustration.images.map((image) => ({
+          ...image,
+          titre: illustration.titre,
+          description: illustration.description,
+          groupe_ordre: illustration.ordre,
+        }))
+      }
+
+      return illustration
+    })
+    .sort(
+      (firstIllustration, secondIllustration) =>
+        Number(
+          firstIllustration?.groupe_ordre ??
+            firstIllustration?.ordre ??
+            0
+        ) -
+        Number(
+          secondIllustration?.groupe_ordre ??
+            secondIllustration?.ordre ??
+            0
+        )
+    )
 }
 
 
@@ -120,15 +138,99 @@ const isHtmlContent = (content) => {
   )
 }
 
+const getVideoExtension = (videoUrl) => {
+  const cleanUrl = String(videoUrl || '')
+    .split('?')[0]
+    .split('#')[0]
+    .toLowerCase()
+
+  const extensionMatch = cleanUrl.match(/\.([a-z0-9]+)$/)
+  return extensionMatch?.[1] || ''
+}
+
+const getVideoMimeType = (videoUrl) => {
+  const extension = getVideoExtension(videoUrl)
+
+  const mimeTypes = {
+    mp4: 'video/mp4',
+    m4v: 'video/x-m4v',
+    webm: 'video/webm',
+    ogg: 'video/ogg',
+    ogv: 'video/ogg',
+    mov: 'video/quicktime',
+    mkv: 'video/x-matroska',
+    mk3d: 'video/x-matroska',
+    mks: 'video/x-matroska',
+    avi: 'video/x-msvideo',
+    mpg: 'video/mpeg',
+    mpeg: 'video/mpeg',
+    ts: 'video/mp2t',
+    m2ts: 'video/mp2t',
+  }
+
+  return mimeTypes[extension] || 'application/octet-stream'
+}
+
+const isMatroskaVideo = (videoUrl) =>
+  ['mkv', 'mk3d', 'mks'].includes(
+    getVideoExtension(videoUrl)
+  )
+
+const getEmbeddedVideoUrl = (videoUrl) => {
+  if (!videoUrl) {
+    return ''
+  }
+
+  try {
+    const url = new URL(videoUrl, window.location.origin)
+    const hostname = url.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (hostname === 'youtu.be') {
+      const videoId = url.pathname.replace(/^\//, '').split('/')[0]
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : ''
+    }
+
+    if (hostname === 'youtube.com' || hostname === 'm.youtube.com') {
+      const videoId =
+        url.searchParams.get('v') ||
+        url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1]
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : ''
+    }
+
+    if (hostname === 'vimeo.com' || hostname === 'player.vimeo.com') {
+      const videoId = url.pathname.match(/(?:video\/)?(\d+)/)?.[1]
+      return videoId ? `https://player.vimeo.com/video/${videoId}` : ''
+    }
+  } catch {
+    return ''
+  }
+
+  return ''
+}
+
 function Read({
   module,
   getMediaUrl,
   onBack,
   onOpenQuiz,
   onOpenChallenge,
+  onMarkedRead,
 }) {
   const [activeLessonIndex, setActiveLessonIndex] =
     useState(0)
+
+  const [isMarkedRead, setIsMarkedRead] = useState(
+    Boolean(module?.est_lu)
+  )
+  const [isMarkingRead, setIsMarkingRead] = useState(false)
+  const [readMessage, setReadMessage] = useState('')
+  const [readError, setReadError] = useState('')
+  const [videoSource, setVideoSource] = useState('')
+  const [videoError, setVideoError] = useState('')
+  const [isLoadingVideoFallback, setIsLoadingVideoFallback] = useState(false)
+  const videoBlobUrlRef = useRef('')
+  const videoFallbackAttemptedRef = useRef(false)
 
   const lessons = useMemo(
     () => getModuleLessons(module),
@@ -137,7 +239,10 @@ function Read({
 
   useEffect(() => {
     setActiveLessonIndex(0)
-  }, [module?.id])
+    setIsMarkedRead(Boolean(module?.est_lu))
+    setReadMessage('')
+    setReadError('')
+  }, [module?.slug, module?.est_lu])
 
   const moduleSlug =
     getModuleSlug(module)
@@ -199,6 +304,90 @@ function Read({
       ''
   )
 
+  const embeddedVideoUrl = getEmbeddedVideoUrl(lessonVideo)
+
+  useEffect(() => {
+    if (videoBlobUrlRef.current) {
+      URL.revokeObjectURL(videoBlobUrlRef.current)
+      videoBlobUrlRef.current = ''
+    }
+
+    videoFallbackAttemptedRef.current = false
+    setVideoSource(embeddedVideoUrl ? '' : lessonVideo)
+    setVideoError('')
+    setIsLoadingVideoFallback(false)
+
+    return () => {
+      if (videoBlobUrlRef.current) {
+        URL.revokeObjectURL(videoBlobUrlRef.current)
+        videoBlobUrlRef.current = ''
+      }
+    }
+  }, [embeddedVideoUrl, lessonVideo])
+
+  const handleVideoPlaybackError = async () => {
+    if (
+      !lessonVideo ||
+      embeddedVideoUrl ||
+      videoFallbackAttemptedRef.current
+    ) {
+      setVideoError(
+        isMatroskaVideo(lessonVideo)
+          ? 'Le fichier MKV est accessible, mais son conteneur ou ses codecs ne sont pas pris en charge par ce navigateur. Une version MP4 H.264/AAC est nécessaire pour garantir la lecture en ligne.'
+          : 'Cette vidéo ne peut pas être lue directement. Utilisez le lien pour l’ouvrir.'
+      )
+      return
+    }
+
+    videoFallbackAttemptedRef.current = true
+    setIsLoadingVideoFallback(true)
+    setVideoError('')
+
+    try {
+      const response = await api.get(lessonVideo, {
+        responseType: 'blob',
+        timeout: 120000,
+      })
+
+      const receivedBlob = response.data
+      const receivedType = String(receivedBlob?.type || '')
+      const expectedType = getVideoMimeType(lessonVideo)
+      const playableType =
+        expectedType !== 'application/octet-stream'
+          ? expectedType
+          : receivedType || 'application/octet-stream'
+
+      const playableBlob =
+        receivedType === playableType
+          ? receivedBlob
+          : new Blob([receivedBlob], {
+              type: playableType,
+            })
+
+      const blobUrl = URL.createObjectURL(playableBlob)
+
+      if (videoBlobUrlRef.current) {
+        URL.revokeObjectURL(videoBlobUrlRef.current)
+      }
+
+      videoBlobUrlRef.current = blobUrl
+      setVideoSource(blobUrl)
+    } catch (videoRequestError) {
+      console.error(
+        'Impossible de charger la vidéo avec authentification :',
+        videoRequestError
+      )
+      setVideoError(
+        getApiErrorMessage(
+          videoRequestError,
+          'Impossible de charger cette vidéo.'
+        )
+      )
+    } finally {
+      setIsLoadingVideoFallback(false)
+    }
+  }
+
   const lessonDocument = resolveMediaUrl(
     activeLesson?.fichier ??
       activeLesson?.document ??
@@ -212,6 +401,10 @@ function Read({
       module
     )
 
+  const resources = Array.isArray(module?.ressources)
+    ? module.ressources
+    : []
+
   const quizAvailable =
     module?.quiz_disponible !== false
 
@@ -219,48 +412,20 @@ function Read({
     section,
     view = ''
   ) => {
-    if (
-      typeof window === 'undefined'
-    ) {
+    if (typeof window === 'undefined' || !moduleSlug) {
       return
     }
 
-    const nextUrl = new URL(
-      window.location.href
-    )
-
-    nextUrl.searchParams.set(
-      'section',
-      section
-    )
-
-    if (moduleSlug) {
-      nextUrl.searchParams.set(
-        'module',
-        moduleSlug
-      )
-    }
-
-    nextUrl.searchParams.delete(
-      'moduleId'
-    )
-
-    if (view) {
-      nextUrl.searchParams.set(
-        'view',
-        view
-      )
-    } else {
-      nextUrl.searchParams.delete(
-        'view'
-      )
-    }
+    const nextUrl = buildDashboardUrl({
+      section,
+      moduleSlug,
+      view: view || 'read',
+    })
 
     window.history.pushState(
       {
         section,
         moduleSlug,
-        moduleId: module?.id,
         view,
       },
       '',
@@ -269,36 +434,11 @@ function Read({
   }
 
   const handleBack = () => {
-    if (
-      typeof window !== 'undefined'
-    ) {
-      const nextUrl = new URL(
-        window.location.href
-      )
-
-      nextUrl.searchParams.set(
-        'section',
-        'learning'
-      )
-
-      nextUrl.searchParams.delete(
-        'module'
-      )
-
-      nextUrl.searchParams.delete(
-        'moduleId'
-      )
-
-      nextUrl.searchParams.delete(
-        'view'
-      )
-
+    if (typeof window !== 'undefined') {
       window.history.pushState(
-        {
-          section: 'learning',
-        },
+        { section: 'learning' },
         '',
-        nextUrl
+        buildDashboardUrl({ section: 'learning' })
       )
     }
 
@@ -322,9 +462,8 @@ function Read({
   }
 
   const handleOpenChallenge = () => {
-    sessionStorage.setItem(
-      'waterChallengeChallengeModuleId',
-      String(module.id)
+    sessionStorage.removeItem(
+      'waterChallengeChallengeModuleId'
     )
 
     sessionStorage.setItem(
@@ -344,6 +483,42 @@ function Read({
       'function'
     ) {
       onOpenChallenge(module)
+    }
+  }
+
+  const handleMarkRead = async () => {
+    if (!moduleSlug || isMarkedRead || isMarkingRead) {
+      return
+    }
+
+    setIsMarkingRead(true)
+    setReadMessage('')
+    setReadError('')
+
+    try {
+      const progression = await formationApi.markRead(moduleSlug)
+
+      setIsMarkedRead(true)
+      setReadMessage('Lecture enregistrée avec succès.')
+
+      window.dispatchEvent(
+        new CustomEvent('waterchallenge:data-updated', {
+          detail: { source: 'module-read', moduleSlug },
+        })
+      )
+
+      if (typeof onMarkedRead === 'function') {
+        onMarkedRead(progression)
+      }
+    } catch (error) {
+      setReadError(
+        getApiErrorMessage(
+          error,
+          "Impossible d'enregistrer la lecture du module."
+        )
+      )
+    } finally {
+      setIsMarkingRead(false)
     }
   }
 
@@ -416,7 +591,7 @@ function Read({
 
   return (
     <section className="read-page">
-      
+
       <header className="read-page__header">
         <div className="read-page__header-content">
           <span className="read-page__slug">
@@ -447,7 +622,7 @@ function Read({
                 'Débutant'}
             </span>
 
-            {module.est_lu && (
+            {isMarkedRead && (
               <span className="is-read">
                 ✓ Module lu
               </span>
@@ -490,7 +665,7 @@ function Read({
 
       {moduleCover && (
         <div className="read-page__cover">
-          
+
 
           <div className="read-page__cover-overlay">
             <span>Water Challenge</span>
@@ -662,17 +837,41 @@ function Read({
 
               {lessonVideo && (
                 <div className="read-page__video-section">
-                 
+                  {embeddedVideoUrl ? (
+                    <iframe
+                      src={embeddedVideoUrl}
+                      title={lessonTitle || 'Vidéo du module'}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      key={videoSource || lessonVideo}
+                      src={videoSource || lessonVideo}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      onCanPlay={() => setVideoError('')}
+                      onError={handleVideoPlaybackError}
+                    >
+                      Votre navigateur ne prend pas en charge la lecture de vidéos.
+                    </video>
+                  )}
 
-                  <video
-                    src={lessonVideo}
-                    controls
-                    preload="metadata"
-                  >
-                    Votre navigateur ne
-                    prend pas en charge la
-                    lecture de vidéos.
-                  </video>
+                  {isLoadingVideoFallback && (
+                    <p className="read-page__video-status" role="status">
+                      Chargement sécurisé de la vidéo…
+                    </p>
+                  )}
+
+                  {videoError && (
+                    <p className="read-page__video-status is-error" role="alert">
+                      {videoError}{' '}
+                      <a href={lessonVideo} target="_blank" rel="noreferrer">
+                        Ouvrir la vidéo
+                      </a>
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -772,6 +971,8 @@ function Read({
                             <img
                               src={imageUrl}
                               alt={
+                                illustration?.titre ||
+                                illustration?.description ||
                                 illustration?.legende ||
                                 `Illustration ${illustrationIndex + 1}`
                               }
@@ -784,11 +985,19 @@ function Read({
                               }}
                             />
 
-                            {illustration?.legende && (
+                            {(illustration?.titre ||
+                              illustration?.description ||
+                              illustration?.legende) && (
                               <figcaption>
-                                {
-                                  illustration.legende
-                                }
+                                <strong>
+                                  {illustration?.titre ||
+                                    illustration?.legende}
+                                </strong>
+                                {illustration?.description && (
+                                  <span>
+                                    {illustration.description}
+                                  </span>
+                                )}
                               </figcaption>
                             )}
                           </figure>
@@ -799,26 +1008,53 @@ function Read({
                 </div>
               )}
 
-              {lessonDocument && (
-                <a
-                  className="read-page__resource"
-                  href={lessonDocument}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span aria-hidden="true">
-                    📎
-                  </span>
+              {(lessonDocument || resources.length > 0) && (
+                <div className="read-page__resources">
+                  {lessonDocument && (
+                    <a
+                      className="read-page__resource"
+                      href={lessonDocument}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span aria-hidden="true">📎</span>
+                      <span>Ouvrir la ressource de la leçon</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  )}
 
-                  <span>
-                    Ouvrir la ressource
-                  </span>
+                  {resources.map((resource, resourceIndex) => {
+                    const resourceUrl = resolveMediaUrl(
+                      resource?.fichier || resource?.url || resource
+                    )
 
-                  <span aria-hidden="true">
-                    ↗
-                  </span>
-                </a>
+                    if (!resourceUrl) {
+                      return null
+                    }
+
+                    const resourceName = String(
+                      resource?.fichier || resource?.nom || ''
+                    )
+                      .split('/')
+                      .pop()
+
+                    return (
+                      <a
+                        className="read-page__resource"
+                        href={resourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        key={resource?.id ?? resourceIndex}
+                      >
+                        <span aria-hidden="true">📄</span>
+                        <span>{resourceName || `Ressource ${resourceIndex + 1}`}</span>
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    )
+                  })}
+                </div>
               )}
+
 
               <div className="read-page__navigation">
                 <button
@@ -968,6 +1204,31 @@ function Read({
                 </div>
               </div>
             </div>
+
+            {readError && (
+              <p className="read-page__action-message is-error" role="alert">
+                {readError}
+              </p>
+            )}
+
+            {readMessage && (
+              <p className="read-page__action-message is-success" role="status">
+                {readMessage}
+              </p>
+            )}
+
+            <button
+              type="button"
+              className="read-page__quiz-action"
+              disabled={isMarkedRead || isMarkingRead}
+              onClick={handleMarkRead}
+            >
+              {isMarkedRead
+                ? '✓ Module marqué comme lu'
+                : isMarkingRead
+                  ? 'Enregistrement…'
+                  : 'Marquer le module comme lu'}
+            </button>
 
             <button
               type="button"

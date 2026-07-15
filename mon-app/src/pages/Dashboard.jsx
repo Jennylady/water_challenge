@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -24,6 +25,12 @@ import ProfileSection from './dashboardSections/ProfileSection'
 import HelpSection from './dashboardSections/HelpSection'
 
 import { getDashboardData } from './dashboardSections/dashboardData'
+import { getApiErrorMessage } from '../api/api'
+import { notificationsApi } from '../api/services'
+import {
+  buildDashboardUrl,
+  parseDashboardLocation,
+} from '../utils/dashboardRoutes'
 
 
 const DASHBOARD_SECTIONS = [
@@ -41,43 +48,18 @@ const DASHBOARD_SECTIONS = [
 ]
 
 
-const getRawHashSection = () => {
-  if (typeof window === 'undefined') {
-    return ''
-  }
+const getSectionFromLocation = () => {
+  const parsedLocation = parseDashboardLocation()
 
-  try {
-    return decodeURIComponent(
-      window.location.hash
-        .replace(/^#\/?/, '')
-        .trim()
-        .toLowerCase()
-    )
-  } catch (error) {
-    console.error(
-      'Impossible de décoder le hash :',
-      error
-    )
-
-    return ''
-  }
-}
-
-
-const getSectionFromHash = () => {
-  const hashSection =
-    getRawHashSection()
-
-  return DASHBOARD_SECTIONS.includes(
-    hashSection
-  )
-    ? hashSection
+  return DASHBOARD_SECTIONS.includes(parsedLocation.section)
+    ? parsedLocation.section
     : 'dashboard'
 }
 
 function Dashboard({
   user,
   onLogout,
+  onUserUpdate,
 }) {
   const [language, setLanguage] =
     useState('FR')
@@ -90,13 +72,17 @@ function Dashboard({
     activeSection,
     setActiveSection,
   ] = useState(() =>
-    getSectionFromHash()
+    getSectionFromLocation()
   )
 
   const [
     showNotifications,
     setShowNotifications,
   ] = useState(false)
+
+  const [notifications, setNotifications] = useState([])
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+  const [notificationsError, setNotificationsError] = useState('')
 
   const [
     showMobileMenu,
@@ -301,40 +287,135 @@ function Dashboard({
     currentUser.nom,
   ])
 
-  const pendingCount = useMemo(() => {
-    return activities.filter(
-      (activity) =>
-        activity.status === 'pending'
-    ).length
-  }, [activities])
+  const loadNotifications = useCallback(async () => {
+    setIsLoadingNotifications(true)
+    setNotificationsError('')
 
-  const notificationItems =
-    useMemo(() => {
-      const baseNotifications =
-        Array.isArray(
-          data.notifications
+    try {
+      const receivedNotifications = await notificationsApi.list()
+      setNotifications(receivedNotifications)
+    } catch (requestError) {
+      console.error('Impossible de charger les notifications :', requestError)
+      setNotificationsError(
+        getApiErrorMessage(
+          requestError,
+          'Impossible de charger les notifications.'
         )
-          ? data.notifications
-          : []
+      )
+    } finally {
+      setIsLoadingNotifications(false)
+    }
+  }, [])
 
-      if (pendingCount <= 0) {
-        return baseNotifications
+  useEffect(() => {
+    loadNotifications()
+
+    const refresh = () => loadNotifications()
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications()
+      }
+    }
+    const pollingId = window.setInterval(loadNotifications, 60_000)
+
+    window.addEventListener('waterchallenge:data-updated', refresh)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+
+    return () => {
+      window.clearInterval(pollingId)
+      window.removeEventListener('waterchallenge:data-updated', refresh)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [loadNotifications])
+
+  useEffect(() => {
+    if (showNotifications) {
+      loadNotifications()
+    }
+  }, [loadNotifications, showNotifications])
+
+  const notificationItems = useMemo(
+    () => (Array.isArray(notifications) ? notifications : []),
+    [notifications]
+  )
+
+  const unreadNotificationsCount = useMemo(
+    () => notificationItems.filter((notification) => !notification.est_lue).length,
+    [notificationItems]
+  )
+
+  const markNotificationAsRead = useCallback(async (notification) => {
+    if (!notification?.id || notification.est_lue) {
+      return notification
+    }
+
+    try {
+      const updated = await notificationsApi.markRead(notification.id)
+      setNotifications((current) =>
+        current.map((item) =>
+          String(item.id) === String(notification.id)
+            ? { ...item, ...updated, est_lue: true }
+            : item
+        )
+      )
+      return updated
+    } catch (requestError) {
+      setNotificationsError(
+        getApiErrorMessage(
+          requestError,
+          'Impossible de marquer cette notification comme lue.'
+        )
+      )
+      return notification
+    }
+  }, [])
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    try {
+      await notificationsApi.markAllRead()
+      setNotifications((current) =>
+        current.map((notification) => ({
+          ...notification,
+          est_lue: true,
+          lue_le: notification.lue_le || new Date().toISOString(),
+        }))
+      )
+    } catch (requestError) {
+      setNotificationsError(
+        getApiErrorMessage(
+          requestError,
+          'Impossible de marquer toutes les notifications comme lues.'
+        )
+      )
+    }
+  }, [])
+
+  const openNotification = useCallback(
+    async (notification) => {
+      await markNotificationAsRead(notification)
+
+      const challengeMatch = String(notification?.lien || '').match(
+        /\/challenges\/defis\/([^/]+)\/?/
+      )
+
+      if (challengeMatch) {
+        const challengeId = challengeMatch[1]
+
+        window.history.pushState(
+          { section: 'challenges', challengeId },
+          '',
+          buildDashboardUrl({
+            section: 'challenges',
+            challengeId,
+          })
+        )
+        setActiveSection('challenges')
       }
 
-      const pendingNotification =
-        language === 'FR'
-          ? `${pendingCount} activité(s) en attente de validation.`
-          : `${pendingCount} asa miandry fanamarinana.`
-
-      return [
-        ...baseNotifications,
-        pendingNotification,
-      ]
-    }, [
-      data.notifications,
-      pendingCount,
-      language,
-    ])
+      setShowNotifications(false)
+    },
+    [markNotificationAsRead]
+  )
 
   const menuItems = [
     {
@@ -397,183 +478,75 @@ function Dashboard({
     },
   ]
 
-  /*
-   * Nettoie les informations d'un module qui ne doivent
-   * plus rester actives dans l'URL ou dans sessionStorage.
-   *
-   * Seule l'ouverture de Challenges depuis un module
-   * Learning conserve moduleId.
-   */
-  const clearLearningModuleContext = (
-    nextSection
-  ) => {
-    if (
-      typeof window === 'undefined'
-    ) {
-      return
-    }
-
-    const nextUrl =
-      new URL(
-        window.location.href
-      )
-
-    const moduleQueryParams = [
-      'module',
-      'moduleSlug',
-      'module_slug',
-      'slug',
-      'target',
-      'view',
-    ]
-
-    const learningStorageKeys = [
+  const clearStoredModuleContext = () => {
+    const storageKeys = [
       'waterChallengeSelectedModule',
       'waterChallengeCurrentModule',
       'waterChallengeModuleTarget',
       'waterChallengeModuleNavigation',
-    ]
-
-    const challengeStorageKeys = [
       'waterChallengeChallengeModule',
       'waterChallengeChallengeModuleId',
       'waterChallengeChallengeModuleSlug',
     ]
 
-    /*
-     * Ce cas est vrai uniquement lorsque LearningSection
-     * vient d'exécuter openChallengePage().
-     *
-     * Un clic ordinaire sur le menu Challenges ne doit pas
-     * réutiliser le module précédent.
-     */
-    const opensChallengesFromModule =
-      nextSection === 'challenges' &&
-      activeSection === 'learning' &&
-      Boolean(
-        nextUrl.searchParams.get(
-          'moduleId'
-        )
-      )
-
-    learningStorageKeys.forEach(
-      (storageKey) => {
-        sessionStorage.removeItem(
-          storageKey
+    storageKeys.forEach((storageKey) => {
+      try {
+        sessionStorage.removeItem(storageKey)
+      } catch (storageError) {
+        console.error(
+          'Impossible de nettoyer le contexte du module :',
+          storageError
         )
       }
-    )
-
-    if (!opensChallengesFromModule) {
-      challengeStorageKeys.forEach(
-        (storageKey) => {
-          sessionStorage.removeItem(
-            storageKey
-          )
-        }
-      )
-    }
-
-    moduleQueryParams.forEach(
-      (parameterName) => {
-        nextUrl.searchParams.delete(
-          parameterName
-        )
-      }
-    )
-
-    if (opensChallengesFromModule) {
-      nextUrl.searchParams.set(
-        'section',
-        'challenges'
-      )
-    } else {
-      /*
-       * Le catalogue Learning et les sections générales
-       * ne doivent conserver ni slug ni UUID de module.
-       */
-      nextUrl.searchParams.delete(
-        'moduleId'
-      )
-
-      nextUrl.searchParams.delete(
-        'section'
-      )
-    }
-
-    window.history.replaceState(
-      {
-        ...(window.history.state ||
-          {}),
-        section: nextSection,
-      },
-      '',
-      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
-    )
-
-    /*
-     * Si Learning est déjà affiché, React ne remonte pas
-     * automatiquement le composant. Cet événement demande
-     * à LearningSection de relire l'URL nettoyée et de
-     * revenir immédiatement au catalogue.
-     */
-    if (nextSection === 'learning') {
-      window.dispatchEvent(
-        new PopStateEvent(
-          'popstate',
-          {
-            state: {
-              section:
-                'learning',
-            },
-          }
-        )
-      )
-    }
+    })
   }
 
   /*
    * Navigation interne du Dashboard.
-   *
-   * Chaque section est également enregistrée
-   * dans le hash de l’URL.
+   * Les sections générales gardent les anciennes URL en hash.
+   * Les vues d'un module utilisent leur route avec slug et passent
+   * skipUrl=true après avoir déjà construit cette route.
    */
   const handleSectionChange = (
-    sectionId
+    sectionId,
+    options = {}
   ) => {
-    if (
-      !DASHBOARD_SECTIONS.includes(
-        sectionId
-      )
-    ) {
+    if (!DASHBOARD_SECTIONS.includes(sectionId)) {
       console.error(
         `Section Dashboard inconnue : ${sectionId}`
       )
-
       return
     }
 
-    clearLearningModuleContext(
-      sectionId
-    )
+    const {
+      preserveModuleContext = false,
+      skipUrl = false,
+      replace = false,
+    } = options
+
+    if (!preserveModuleContext) {
+      clearStoredModuleContext()
+    }
 
     setActiveSection(sectionId)
     setShowMobileMenu(false)
     setShowNotifications(false)
 
-    const nextHash =
-      `#${sectionId}`
+    if (!skipUrl) {
+      const nextUrl = buildDashboardUrl({ section: sectionId })
+      const historyState = { section: sectionId }
 
-    /*
-     * Modifier location.hash ajoute une entrée
-     * dans l’historique du navigateur.
-     */
-    if (
-      window.location.hash !==
-      nextHash
-    ) {
-      window.location.hash =
-        sectionId
+      if (replace) {
+        window.history.replaceState(historyState, '', nextUrl)
+      } else {
+        window.history.pushState(historyState, '', nextUrl)
+      }
+
+      window.dispatchEvent(
+        new PopStateEvent('popstate', {
+          state: historyState,
+        })
+      )
     }
 
     window.scrollTo({
@@ -639,7 +612,7 @@ function Dashboard({
       nextActivities
     )
 
-   
+
     handleSectionChange(
       'activities'
     )
@@ -720,55 +693,38 @@ function Dashboard({
   }
 
   useEffect(() => {
-    const synchronizeSectionWithHash =
-      () => {
-        const sectionFromHash =
-          getSectionFromHash()
+    const synchronizeSectionWithLocation = () => {
+      const sectionFromLocation = getSectionFromLocation()
 
-        clearLearningModuleContext(
-          sectionFromHash
-        )
+      setActiveSection(sectionFromLocation)
+      setShowMobileMenu(false)
+      setShowNotifications(false)
 
-        setActiveSection(
-          sectionFromHash
-        )
-
-        setShowMobileMenu(false)
-        setShowNotifications(false)
-
-        window.scrollTo({
-          top: 0,
-          behavior: 'auto',
-        })
-      }
-
-    const initialHashSection =
-      getRawHashSection()
-    if (
-      !DASHBOARD_SECTIONS.includes(
-        initialHashSection
-      )
-    ) {
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${window.location.pathname}${window.location.search}#dashboard`
-      )
-
-      setActiveSection(
-        'dashboard'
-      )
+      window.scrollTo({
+        top: 0,
+        behavior: 'auto',
+      })
     }
 
+    synchronizeSectionWithLocation()
+
+    window.addEventListener(
+      'popstate',
+      synchronizeSectionWithLocation
+    )
     window.addEventListener(
       'hashchange',
-      synchronizeSectionWithHash
+      synchronizeSectionWithLocation
     )
 
     return () => {
       window.removeEventListener(
+        'popstate',
+        synchronizeSectionWithLocation
+      )
+      window.removeEventListener(
         'hashchange',
-        synchronizeSectionWithHash
+        synchronizeSectionWithLocation
       )
     }
   }, [])
@@ -844,6 +800,12 @@ function Dashboard({
     }
   }, [])
 
+  const handleProfileUpdate = (updatedUser) => {
+    if (typeof onUserUpdate === 'function') {
+      onUserUpdate(updatedUser)
+    }
+  }
+
   const renderSection = () => {
     const sharedProps = {
       t,
@@ -852,6 +814,7 @@ function Dashboard({
       user: currentUser,
       activities,
       projects,
+      onProfileUpdate: handleProfileUpdate,
 
       setActiveSection:
         handleSectionChange,
@@ -1009,52 +972,73 @@ function Dashboard({
                     </h3>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowNotifications(
-                        false
-                      )
-                    }
-                    aria-label="Fermer les notifications"
-                  >
-                    ×
-                  </button>
+                  <div className="dash-notification-head-actions">
+                    {unreadNotificationsCount > 0 && (
+                      <button
+                        type="button"
+                        className="dash-notification-read-all"
+                        onClick={markAllNotificationsAsRead}
+                      >
+                        Tout lire
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowNotifications(false)}
+                      aria-label="Fermer les notifications"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
 
                 <div className="dash-notification-portal-list">
-                  {notificationItems.length >
-                  0 ? (
-                    notificationItems.map(
-                      (
-                        notification,
-                        index
-                      ) => (
-                        <div
-                          className="dash-notification-row"
-                          key={`${notification}-${index}`}
-                        >
-                          <strong>
-                            {index + 1}
-                          </strong>
+                  {notificationsError && (
+                    <div className="dash-notification-error">
+                      <p>{notificationsError}</p>
+                      <button type="button" onClick={loadNotifications}>
+                        Réessayer
+                      </button>
+                    </div>
+                  )}
 
-                          <p>
-                            {
-                              notification
-                            }
-                          </p>
+                  {isLoadingNotifications && notificationItems.length === 0 ? (
+                    <div className="dash-empty">Chargement des notifications…</div>
+                  ) : notificationItems.length > 0 ? (
+                    notificationItems.map((notification) => (
+                      <button
+                        type="button"
+                        className={`dash-notification-row ${
+                          notification.est_lue ? 'is-read' : 'is-unread'
+                        }`}
+                        key={notification.id}
+                        onClick={() => openNotification(notification)}
+                      >
+                        <strong aria-hidden="true">
+                          {notification.est_lue ? '✓' : '•'}
+                        </strong>
+
+                        <div>
+                          <h4>{notification.titre || 'Notification'}</h4>
+                          <p>{notification.message}</p>
+                          {notification.cree_le && (
+                            <small>
+                              {new Date(notification.cree_le).toLocaleString('fr-FR')}
+                            </small>
+                          )}
                         </div>
-                      )
-                    )
+                      </button>
+                    ))
                   ) : (
                     <div className="dash-empty">
-                      {language ===
-                      'FR'
+                      {language === 'FR'
                         ? 'Aucune notification pour le moment.'
                         : 'Tsy misy fampahafantarana amin’izao fotoana izao.'}
                     </div>
                   )}
                 </div>
+
               </motion.aside>
             </motion.div>
           </AnimatePresence>,
@@ -1167,7 +1151,7 @@ function Dashboard({
 
   return (
     <div className="dash-page">
-    
+
 
       <motion.header
         className="dash-navbar dash-navbar-clean"
@@ -1231,7 +1215,7 @@ function Dashboard({
               )
             }
             title="Notifications"
-            aria-label={`Notifications : ${notificationItems.length}`}
+            aria-label={`Notifications non lues : ${unreadNotificationsCount}`}
           >
             <span
               className="dash-notification-icon"
@@ -1240,12 +1224,9 @@ function Dashboard({
               🔔
             </span>
 
-            {notificationItems.length >
-              0 && (
+            {unreadNotificationsCount > 0 && (
               <span className="dash-notification-badge">
-                {
-                  notificationItems.length
-                }
+                {unreadNotificationsCount}
               </span>
             )}
           </button>

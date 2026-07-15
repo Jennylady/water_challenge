@@ -5,12 +5,15 @@ import {
   useState,
 } from 'react'
 
-import api from '../../api/api'
-import { getCookie } from '../../utils/cookies'
+import { getApiErrorMessage } from '../../api/api'
+import { challengesApi } from '../../api/services'
+import {
+  buildDashboardUrl,
+  parseDashboardLocation,
+} from '../../utils/dashboardRoutes'
 
 import './ChallengesSection.css'
 
-const ENDPOINT = '/challenges/defis/'
 const CHALLENGES_PER_PAGE = 4
 
 const STORAGE_KEYS = {
@@ -22,9 +25,6 @@ const STORAGE_KEYS = {
 
   CHALLENGE_MODULE:
     'waterChallengeChallengeModule',
-
-  CHALLENGE_MODULE_ID:
-    'waterChallengeChallengeModuleId',
 
   CHALLENGE_MODULE_SLUG:
     'waterChallengeChallengeModuleSlug',
@@ -44,25 +44,6 @@ const normalizeText = (value) => {
 
 const normalizeIdentifier = (value) => {
   return String(value || '').trim()
-}
-
-const getChallengeModuleId = (challenge) => {
-  const moduleValue = challenge?.module
-
-  const value =
-    challenge?.module_id ??
-    challenge?.module_uuid ??
-    challenge?.formation_module_id ??
-    challenge?.module_detail?.id ??
-    (
-      moduleValue &&
-      typeof moduleValue === 'object'
-        ? moduleValue.id
-        : moduleValue
-    ) ??
-    ''
-
-  return normalizeIdentifier(value)
 }
 
 const getChallengeModuleSlug = (challenge) => {
@@ -142,7 +123,6 @@ const readStoredModule = () => {
 const getModuleFilterFromLocation = () => {
   const emptyFilter = {
     isActive: false,
-    moduleId: '',
     moduleSlug: '',
     moduleTitle: '',
   }
@@ -151,86 +131,31 @@ const getModuleFilterFromLocation = () => {
     return emptyFilter
   }
 
-  const searchParams =
-    new URLSearchParams(
-      window.location.search
-    )
+  const parsedLocation = parseDashboardLocation()
+  const moduleSlug = normalizeIdentifier(
+    parsedLocation.section === 'challenges'
+      ? parsedLocation.moduleSlug
+      : ''
+  )
 
-  const urlModuleId =
-    normalizeIdentifier(
-      searchParams.get('moduleId')
-    )
-
-  const urlModuleSlug =
-    normalizeIdentifier(
-      searchParams.get('module')
-    )
-
-  if (!urlModuleId && !urlModuleSlug) {
+  if (!moduleSlug) {
     return emptyFilter
   }
 
   const storedModule = readStoredModule()
-
-  const storedModuleId =
-    normalizeIdentifier(
-      storedModule?.id ||
-      sessionStorage.getItem(
-        STORAGE_KEYS.CHALLENGE_MODULE_ID
-      )
-    )
-
-  const storedModuleSlug =
-    normalizeIdentifier(
-      storedModule?.slug ||
-      sessionStorage.getItem(
-        STORAGE_KEYS.CHALLENGE_MODULE_SLUG
-      )
-    )
-
-  const idMatches = Boolean(
-    urlModuleId &&
-    storedModuleId &&
-    urlModuleId === storedModuleId
+  const storedSlug = normalizeIdentifier(
+    storedModule?.slug ||
+      sessionStorage.getItem(STORAGE_KEYS.CHALLENGE_MODULE_SLUG)
   )
-
-  const slugMatches = Boolean(
-    urlModuleSlug &&
-    storedModuleSlug &&
-    normalizeText(urlModuleSlug) ===
-      normalizeText(storedModuleSlug)
-  )
-
-  const storageMatchesUrl =
-    idMatches || slugMatches
+  const storedMatches =
+    storedSlug && normalizeText(storedSlug) === normalizeText(moduleSlug)
 
   return {
     isActive: true,
-
-    moduleId:
-      urlModuleId ||
-      (
-        storageMatchesUrl
-          ? storedModuleId
-          : ''
-      ),
-
-    moduleSlug:
-      urlModuleSlug ||
-      (
-        storageMatchesUrl
-          ? storedModuleSlug
-          : ''
-      ),
-
-    moduleTitle:
-      storageMatchesUrl
-        ? String(
-            storedModule?.titre ||
-            storedModule?.title ||
-            ''
-          ).trim()
-        : '',
+    moduleSlug,
+    moduleTitle: storedMatches
+      ? String(storedModule?.titre || storedModule?.title || '').trim()
+      : '',
   }
 }
 
@@ -490,6 +415,15 @@ function ChallengesSection({
   const [error, setError] =
     useState('')
 
+  const [detailError, setDetailError] =
+    useState('')
+
+  const [isLoadingDetail, setIsLoadingDetail] =
+    useState(false)
+
+  const [isStartingChallenge, setIsStartingChallenge] =
+    useState(false)
+
   const [
     currentPage,
     setCurrentPage,
@@ -546,77 +480,21 @@ function ChallengesSection({
       setError('')
 
       try {
-        const accessToken =
-          getCookie('accessToken') ||
-          getCookie('access') ||
-          ''
-
-        const response =
-          await api.get(
-            ENDPOINT,
-            {
-              headers: accessToken
-                ? {
-                    Authorization:
-                      `Bearer ${accessToken}`,
-                  }
-                : {},
-            }
-          )
-
-        const responseData =
-          response?.data || {}
-
-        if (
-          responseData.success === false
-        ) {
-          throw new Error(
-            responseData.erreur ||
-            responseData.detail ||
-            responseData.message ||
-            'Impossible de récupérer les challenges.'
-          )
-        }
-
-        const receivedChallenges =
-          Array.isArray(
-            responseData.defis
-          )
-            ? responseData.defis
-            : Array.isArray(
-                responseData.challenges
-              )
-              ? responseData.challenges
-              : Array.isArray(
-                  responseData.results
-                )
-                ? responseData.results
-                : []
+        const receivedChallenges = await challengesApi.list(
+          moduleFilter.moduleSlug
+            ? { module_slug: moduleFilter.moduleSlug }
+            : {}
+        )
 
         const sortedChallenges = [
-          ...receivedChallenges,
+          ...(Array.isArray(receivedChallenges) ? receivedChallenges : []),
         ].sort(
-          (
-            firstChallenge,
-            secondChallenge
-          ) => {
-            return (
-              Number(
-                firstChallenge?.ordre ??
-                  0
-              ) -
-              Number(
-                secondChallenge?.ordre ??
-                  0
-              )
-            )
-          }
+          (firstChallenge, secondChallenge) =>
+            Number(firstChallenge?.ordre ?? 0) -
+            Number(secondChallenge?.ordre ?? 0)
         )
 
-        setChallenges(
-          sortedChallenges
-        )
-
+        setChallenges(sortedChallenges)
         setCurrentPage(1)
       } catch (requestError) {
         console.error(
@@ -624,25 +502,18 @@ function ChallengesSection({
           requestError
         )
 
-        const responseData =
-          requestError
-            ?.response
-            ?.data
-
         setError(
-          responseData?.erreur ||
-          responseData?.detail ||
-          responseData?.message ||
-          requestError?.message ||
-          'Impossible de charger les challenges.'
+          getApiErrorMessage(
+            requestError,
+            'Impossible de charger les challenges.'
+          )
         )
-
         setChallenges([])
         setCurrentPage(1)
       } finally {
         setIsLoading(false)
       }
-    }, [])
+    }, [moduleFilter.moduleSlug])
 
   useEffect(() => {
     loadChallenges()
@@ -654,21 +525,17 @@ function ChallengesSection({
 
   useEffect(() => {
     const handlePopState = () => {
-      const searchParams =
-        new URLSearchParams(
-          window.location.search
-        )
+      const parsedLocation = parseDashboardLocation()
 
       setModuleFilter(
         getModuleFilterFromLocation()
       )
 
-      const challengeId =
-        normalizeIdentifier(
-          searchParams.get(
-            'challengeId'
-          )
-        )
+      const challengeId = normalizeIdentifier(
+        parsedLocation.section === 'challenges'
+          ? parsedLocation.challengeId
+          : ''
+      )
 
       if (!challengeId) {
         setSelectedChallenge(null)
@@ -714,17 +581,13 @@ function ChallengesSection({
       return
     }
 
-    const searchParams =
-      new URLSearchParams(
-        window.location.search
-      )
+    const parsedLocation = parseDashboardLocation()
 
-    const challengeId =
-      normalizeIdentifier(
-        searchParams.get(
-          'challengeId'
-        )
-      )
+    const challengeId = normalizeIdentifier(
+      parsedLocation.section === 'challenges'
+        ? parsedLocation.challengeId
+        : ''
+    )
 
     if (!challengeId) {
       return
@@ -739,9 +602,26 @@ function ChallengesSection({
       )
 
     if (matchingChallenge) {
-      setSelectedChallenge(
-        matchingChallenge
-      )
+      setSelectedChallenge(matchingChallenge)
+      setIsLoadingDetail(true)
+      setDetailError('')
+
+      challengesApi
+        .get(matchingChallenge.id)
+        .then((detail) => {
+          setSelectedChallenge(detail)
+        })
+        .catch((requestError) => {
+          setDetailError(
+            getApiErrorMessage(
+              requestError,
+              'Impossible de charger toutes les informations du challenge.'
+            )
+          )
+        })
+        .finally(() => {
+          setIsLoadingDetail(false)
+        })
     }
   }, [
     challenges,
@@ -755,47 +635,20 @@ function ChallengesSection({
 
   const filteredChallenges =
     useMemo(() => {
-      if (!moduleFilter.isActive) {
+      if (!moduleFilter.isActive || !moduleFilter.moduleSlug) {
         return challenges
       }
 
-      return challenges.filter(
-        (challenge) => {
-          const challengeModuleId =
-            getChallengeModuleId(
-              challenge
-            )
+      return challenges.filter((challenge) => {
+        const challengeModuleSlug = getChallengeModuleSlug(challenge)
 
-          const challengeModuleSlug =
-            getChallengeModuleSlug(
-              challenge
-            )
-
-          const matchesId = Boolean(
-            moduleFilter.moduleId &&
-            challengeModuleId &&
-            moduleFilter.moduleId ===
-              challengeModuleId
-          )
-
-          const matchesSlug = Boolean(
-            moduleFilter.moduleSlug &&
-            challengeModuleSlug &&
-            normalizeText(
-              moduleFilter.moduleSlug
-            ) ===
-              normalizeText(
-                challengeModuleSlug
-              )
-          )
-
-          return matchesId || matchesSlug
-        }
-      )
-    }, [
-      challenges,
-      moduleFilter,
-    ])
+        return Boolean(
+          challengeModuleSlug &&
+            normalizeText(moduleFilter.moduleSlug) ===
+              normalizeText(challengeModuleSlug)
+        )
+      })
+    }, [challenges, moduleFilter])
 
   const currentModuleLabel =
     useMemo(() => {
@@ -815,7 +668,6 @@ function ChallengesSection({
           matchingChallenge
         ) ||
         moduleFilter.moduleSlug ||
-        moduleFilter.moduleId ||
         'Module sélectionné'
       )
     }, [
@@ -910,43 +762,19 @@ function ChallengesSection({
 
   const handleShowAllChallenges =
     useCallback(() => {
-      const nextUrl = new URL(
-        window.location.href
-      )
-
-      const parametersToDelete = [
-        'module',
-        'moduleId',
-        'moduleSlug',
-        'module_slug',
-        'slug',
-        'challengeId',
-        'view',
-      ]
-
-      parametersToDelete.forEach(
-        (parameterName) => {
-          nextUrl.searchParams.delete(
-            parameterName
-          )
-        }
-      )
-
       window.history.pushState(
         {
           section: 'challenges',
         },
         '',
-        nextUrl
+        buildDashboardUrl({
+          section: 'challenges',
+        })
       )
 
       try {
         sessionStorage.removeItem(
           STORAGE_KEYS.CHALLENGE_MODULE
-        )
-
-        sessionStorage.removeItem(
-          STORAGE_KEYS.CHALLENGE_MODULE_ID
         )
 
         sessionStorage.removeItem(
@@ -963,7 +791,6 @@ function ChallengesSection({
 
       setModuleFilter({
         isActive: false,
-        moduleId: '',
         moduleSlug: '',
         moduleTitle: '',
       })
@@ -1007,90 +834,150 @@ function ChallengesSection({
       }
     }, [])
 
-  const openChallengeDetails =
-    useCallback(
-      (challenge) => {
-        saveSelectedChallenge(challenge)
-        setSelectedChallenge(challenge)
+  const fetchChallengeDetail = useCallback(
+    async (challengeId, fallbackChallenge = null) => {
+      if (!challengeId) {
+        return fallbackChallenge
+      }
 
-        const nextUrl = new URL(
-          window.location.href
+      setIsLoadingDetail(true)
+      setDetailError('')
+
+      try {
+        const detail = await challengesApi.get(challengeId)
+        setSelectedChallenge(detail)
+        saveSelectedChallenge(detail)
+        return detail
+      } catch (requestError) {
+        console.error(
+          'Erreur de récupération du détail du challenge :',
+          requestError
         )
-
-        nextUrl.searchParams.set(
-          'section',
-          'challenges'
-        )
-
-        nextUrl.searchParams.set(
-          'challengeId',
-          normalizeIdentifier(
-            challenge?.id
+        setDetailError(
+          getApiErrorMessage(
+            requestError,
+            'Impossible de charger toutes les informations du challenge.'
           )
         )
+        return fallbackChallenge
+      } finally {
+        setIsLoadingDetail(false)
+      }
+    },
+    [saveSelectedChallenge]
+  )
+
+  const openChallengeDetails =
+    useCallback(
+      async (challenge) => {
+        saveSelectedChallenge(challenge)
+        setSelectedChallenge(challenge)
+        setDetailError('')
+
+        const challengeId = normalizeIdentifier(challenge?.id)
+        const nextUrl = buildDashboardUrl({
+          section: 'challenges',
+          moduleSlug: moduleFilter.isActive
+            ? moduleFilter.moduleSlug
+            : '',
+          challengeId,
+        })
 
         window.history.pushState(
           {
             ...(window.history.state || {}),
             section: 'challenges',
-            challengeId: challenge?.id,
+            moduleSlug: moduleFilter.moduleSlug,
+            challengeId,
           },
           '',
           nextUrl
         )
 
-        window.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        })
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        await fetchChallengeDetail(challenge?.id, challenge)
       },
-      [saveSelectedChallenge]
+      [
+        fetchChallengeDetail,
+        moduleFilter.isActive,
+        moduleFilter.moduleSlug,
+        saveSelectedChallenge,
+      ]
     )
 
   const closeChallengeDetails =
     useCallback(() => {
       setSelectedChallenge(null)
+      setDetailError('')
 
-      const nextUrl = new URL(
-        window.location.href
-      )
-
-      nextUrl.searchParams.delete(
-        'challengeId'
-      )
+      const nextUrl = buildDashboardUrl({
+        section: 'challenges',
+        moduleSlug: moduleFilter.isActive
+          ? moduleFilter.moduleSlug
+          : '',
+      })
 
       window.history.pushState(
         {
           ...(window.history.state || {}),
           section: 'challenges',
+          moduleSlug: moduleFilter.moduleSlug,
         },
         '',
         nextUrl
       )
 
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      })
-    }, [])
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [moduleFilter.isActive, moduleFilter.moduleSlug])
 
   const continueToSubmission =
-    useCallback(() => {
-      if (!selectedChallenge) {
+    useCallback(async () => {
+      if (!selectedChallenge || isStartingChallenge) {
         return
       }
 
-      saveSelectedChallenge(
-        selectedChallenge
-      )
+      setIsStartingChallenge(true)
+      setDetailError('')
 
-      if (
-        typeof setActiveSection ===
-        'function'
-      ) {
-        setActiveSection('submit')
+      try {
+        let currentChallenge = selectedChallenge
+        const state = getChallengeState(selectedChallenge)
+
+        if (!['started', 'completed', 'pending'].includes(state.key)) {
+          currentChallenge = await challengesApi.start(selectedChallenge.id)
+          setSelectedChallenge(currentChallenge)
+          setChallenges((previousChallenges) =>
+            previousChallenges.map((challenge) =>
+              String(challenge.id) === String(currentChallenge.id)
+                ? { ...challenge, ...currentChallenge }
+                : challenge
+            )
+          )
+        }
+
+        saveSelectedChallenge(currentChallenge)
+        window.dispatchEvent(
+          new CustomEvent('waterchallenge:data-updated', {
+            detail: { source: 'challenge-started' },
+          })
+        )
+
+        if (typeof setActiveSection === 'function') {
+          setActiveSection('submit')
+        }
+      } catch (requestError) {
+        console.error('Impossible de commencer le challenge :', requestError)
+        setDetailError(
+          getApiErrorMessage(
+            requestError,
+            'Impossible de commencer ce challenge.'
+          )
+        )
+      } finally {
+        setIsStartingChallenge(false)
       }
     }, [
+      isStartingChallenge,
       saveSelectedChallenge,
       selectedChallenge,
       setActiveSection,
@@ -1205,6 +1092,28 @@ function ChallengesSection({
           </div>
 
           <div className="challenge-details__body">
+            {isLoadingDetail && (
+              <div className="challenge-details__feedback is-loading">
+                Chargement des informations complètes…
+              </div>
+            )}
+
+            {detailError && (
+              <div className="challenge-details__feedback is-error">
+                <span>{detailError}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    fetchChallengeDetail(
+                      selectedChallenge?.id,
+                      selectedChallenge
+                    )
+                  }
+                >
+                  Réessayer
+                </button>
+              </div>
+            )}
             <section className="challenge-details__section">
               <span className="challenge-details__section-icon">
                 🎯
@@ -1370,9 +1279,18 @@ function ChallengesSection({
                 onClick={
                   continueToSubmission
                 }
+                disabled={
+                  isLoadingDetail ||
+                  isStartingChallenge
+                }
               >
                 <span>
-                  Soumettre une activité
+                  {isStartingChallenge
+                    ? 'Démarrage…'
+                    : state.key === 'available' ||
+                        state.key === 'rejected'
+                      ? 'Commencer et soumettre'
+                      : 'Soumettre une activité'}
                 </span>
 
                 <span aria-hidden="true">

@@ -174,5 +174,5 @@ class Command(BaseCommand):
                 Notification.Type.AUTRE,
                 f"Fandrosoana — {module.titre}",
                 f"Efa mahatratra {progression.pourcentage}% ny fandrosoanao amin'ity module ity.",
-                f"/formation/modules/{module.uuid}/",
+                f"/formation/modules/{module.slug}/",
             )

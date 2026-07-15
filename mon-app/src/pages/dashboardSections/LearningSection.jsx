@@ -6,8 +6,12 @@ import {
   useState,
 } from 'react'
 
-import api from '../../api/api'
-import { getCookie } from '../../utils/cookies'
+import { getMediaUrl as resolveMediaUrl } from '../../api/api'
+import { formationApi } from '../../api/services'
+import {
+  buildDashboardUrl,
+  parseDashboardLocation,
+} from '../../utils/dashboardRoutes'
 
 import Read from './Read'
 import Quiz from './Quiz'
@@ -55,15 +59,11 @@ const STORAGE_KEYS = {
 
 
 const getModuleSlug = (module) => {
-  return String(
-    module?.slug ||
-      module?.id ||
-      ''
-  ).trim()
+  return String(module?.slug || '').trim()
 }
 
 const isModuleAccessible = (module) => {
- 
+
   return module?.est_accessible !== false
 }
 
@@ -182,12 +182,12 @@ const getChallengeCount = (module) => {
 
 const getModuleProgress = (module) => {
   const receivedProgress =
+    module?.progression?.pourcentage ??
     module?.progression ??
     module?.progress ??
     module?.pourcentage_progression
 
-  const numericProgress =
-    Number(receivedProgress)
+  const numericProgress = Number(receivedProgress)
 
   if (
     Number.isFinite(numericProgress)
@@ -368,74 +368,13 @@ function LearningSection({
   )
 
   /* =======================================================
-     AUTHENTIFICATION
-     ======================================================= */
-
-  const getAccessToken =
-    useCallback(() => {
-      return (
-        getCookie('accessToken') ||
-        getCookie('access') ||
-        ''
-      )
-    }, [])
-
-  /* =======================================================
      URL DES MÉDIAS
      ======================================================= */
 
-  const getMediaUrl =
-    useCallback((mediaPath) => {
-      if (!mediaPath) {
-        return ''
-      }
-
-      const stringPath =
-        String(mediaPath)
-
-      if (
-        stringPath.startsWith(
-          'http://'
-        ) ||
-        stringPath.startsWith(
-          'https://'
-        ) ||
-        stringPath.startsWith(
-          'data:'
-        ) ||
-        stringPath.startsWith(
-          'blob:'
-        )
-      ) {
-        return stringPath
-      }
-
-      try {
-        const apiBaseUrl =
-          new URL(
-            api.defaults.baseURL ||
-              '/',
-            window.location.origin
-          )
-
-        const normalizedPath =
-          stringPath.startsWith('/')
-            ? stringPath
-            : `/${stringPath}`
-
-        return new URL(
-          normalizedPath,
-          apiBaseUrl.origin
-        ).href
-      } catch (urlError) {
-        console.error(
-          "Impossible de construire l'URL du média :",
-          urlError
-        )
-
-        return stringPath
-      }
-    }, [])
+  const getMediaUrl = useCallback(
+    (mediaPath) => resolveMediaUrl(mediaPath),
+    []
+  )
 
   /* =======================================================
      GESTION DES ERREURS
@@ -521,49 +460,10 @@ function LearningSection({
       setActionError('')
 
       try {
-        const accessToken =
-          getAccessToken()
-
-        if (!accessToken) {
-          throw new Error(
-            "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
-          )
-        }
-
-        const response =
-          await api.get(
-            '/formation/modules/',
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-              },
-            }
-          )
-
-        const responseData =
-          response?.data || {}
-
-        if (
-          responseData.success ===
-          false
-        ) {
-          throw new Error(
-            responseData.erreur ||
-            responseData.detail ||
-            responseData.message ||
-            labels.error
-          )
-        }
-
         const receivedModules =
-          responseData.modules
+          await formationApi.listModules()
 
-        if (
-          !Array.isArray(
-            receivedModules
-          )
-        ) {
+        if (!Array.isArray(receivedModules)) {
           throw new Error(
             'Le serveur ne retourne pas une liste de modules valide.'
           )
@@ -577,20 +477,11 @@ function LearningSection({
         )
 
         setModules([])
-
-        setError(
-          getErrorMessage(
-            requestError
-          )
-        )
+        setError(getErrorMessage(requestError))
       } finally {
         setIsLoading(false)
       }
-    }, [
-      getAccessToken,
-      getErrorMessage,
-      labels.error,
-    ])
+    }, [getErrorMessage])
 
   useEffect(() => {
     loadModules()
@@ -752,66 +643,32 @@ function LearningSection({
      ======================================================= */
 
   const fetchModuleDetail =
-    useCallback(
-      async (moduleId) => {
-        const accessToken =
-          getAccessToken()
+    useCallback(async (moduleSlug) => {
+      const normalizedSlug = String(moduleSlug || '').trim()
 
-        if (!accessToken) {
-          throw new Error(
-            "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
-          )
-        }
+      if (!normalizedSlug) {
+        throw new Error(
+          'Impossible d’identifier le module demandé.'
+        )
+      }
 
-        const response =
-          await api.get(
-            `/formation/modules/${moduleId}/`,
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-              },
-            }
-          )
+      const moduleDetail =
+        await formationApi.getModule(normalizedSlug)
 
-        const responseData =
-          response?.data || {}
+      if (!moduleDetail?.slug) {
+        throw new Error(
+          'Le serveur ne retourne pas un module valide.'
+        )
+      }
 
-        if (
-          responseData.success ===
-          false
-        ) {
-          throw new Error(
-            responseData.erreur ||
-            responseData.detail ||
-            responseData.message ||
-            "Impossible d'ouvrir le module."
-          )
-        }
+      if (!isModuleAccessible(moduleDetail)) {
+        throw new Error(
+          "Ce module n'est pas encore accessible."
+        )
+      }
 
-        const moduleDetail =
-          responseData.module
-
-        if (!moduleDetail?.id) {
-          throw new Error(
-            'Le serveur ne retourne pas un module valide.'
-          )
-        }
-
-        if (
-          !isModuleAccessible(
-            moduleDetail
-          )
-        ) {
-          throw new Error(
-            "Ce module n'est pas encore accessible."
-          )
-        }
-
-        return moduleDetail
-      },
-      [getAccessToken]
-    )
+      return moduleDetail
+    }, [])
 
   /* =======================================================
      SAUVEGARDE DU MODULE
@@ -829,9 +686,6 @@ function LearningSection({
           )
 
         const navigationData = {
-          moduleId:
-            moduleDetail.id,
-
           moduleSlug,
 
           target,
@@ -904,57 +758,25 @@ function LearningSection({
           return
         }
 
-        const nextUrl =
-          new URL(
-            window.location.href
-          )
-
-        nextUrl.searchParams.set(
-          'section',
-          'learning'
-        )
-
-        nextUrl.searchParams.set(
-          'module',
-          moduleSlug
-        )
-
-        nextUrl.searchParams.set(
-          'view',
-          target ===
-            MODULE_TARGETS.QUIZ
-            ? MODULE_TARGETS.QUIZ
-            : MODULE_TARGETS.READ
-        )
-
-        /*
-         * L’UUID ne doit pas être visible
-         * dans l’URL Learning.
-         */
-        nextUrl.searchParams.delete(
-          'moduleId'
-        )
-
         const historyState = {
           section: 'learning',
-          moduleId:
-            moduleDetail.id,
           moduleSlug,
           view: target,
         }
 
+        const nextUrl = buildDashboardUrl({
+          section: 'learning',
+          moduleSlug,
+          view:
+            target === MODULE_TARGETS.QUIZ
+              ? MODULE_TARGETS.QUIZ
+              : MODULE_TARGETS.READ,
+        })
+
         if (replace) {
-          window.history.replaceState(
-            historyState,
-            '',
-            nextUrl
-          )
+          window.history.replaceState(historyState, '', nextUrl)
         } else {
-          window.history.pushState(
-            historyState,
-            '',
-            nextUrl
-          )
+          window.history.pushState(historyState, '', nextUrl)
         }
       },
       []
@@ -1012,63 +834,27 @@ function LearningSection({
 
   const openChallengePage =
     useCallback(
-      (
-        moduleDetail,
-        replaceUrl = false
-      ) => {
-        const moduleId =
-          String(
-            moduleDetail?.id || ''
-          ).trim()
+      (moduleDetail, replaceUrl = false) => {
+        const moduleSlug = getModuleSlug(moduleDetail)
 
-        const moduleSlug =
-          getModuleSlug(
-            moduleDetail
-          )
-
-        /*
-         * Pour retrouver les challenges associés,
-         * l’UUID du module est la référence fiable.
-         * Le slug reste uniquement une information
-         * secondaire enregistrée en sessionStorage.
-         */
-        if (!moduleId) {
+        if (!moduleSlug) {
           setActionError(
             'Impossible d’identifier le module pour ouvrir ses challenges.'
           )
-
           return
         }
 
         try {
           sessionStorage.setItem(
-            STORAGE_KEYS
-              .CHALLENGE_MODULE_ID,
-
-            moduleId
+            STORAGE_KEYS.CHALLENGE_MODULE_SLUG,
+            moduleSlug
           )
-
-          if (moduleSlug) {
-            sessionStorage.setItem(
-              STORAGE_KEYS
-                .CHALLENGE_MODULE_SLUG,
-
-              moduleSlug
-            )
-          } else {
-            sessionStorage.removeItem(
-              STORAGE_KEYS
-                .CHALLENGE_MODULE_SLUG
-            )
-          }
-
+          sessionStorage.removeItem(
+            STORAGE_KEYS.CHALLENGE_MODULE_ID
+          )
           sessionStorage.setItem(
-            STORAGE_KEYS
-              .CHALLENGE_MODULE,
-
-            JSON.stringify(
-              moduleDetail
-            )
+            STORAGE_KEYS.CHALLENGE_MODULE,
+            JSON.stringify(moduleDetail)
           )
         } catch (storageError) {
           console.error(
@@ -1077,79 +863,31 @@ function LearningSection({
           )
         }
 
-        const nextUrl =
-          new URL(
-            window.location.href
-          )
-
-        nextUrl.searchParams.set(
-          'section',
-          'challenges'
-        )
-
-        /*
-         * ChallengesSection filtre désormais avec
-         * moduleId, pas avec le slug du module.
-         */
-        nextUrl.searchParams.set(
-          'moduleId',
-          moduleId
-        )
-
-        nextUrl.searchParams.delete(
-          'module'
-        )
-
-        nextUrl.searchParams.delete(
-          'moduleSlug'
-        )
-
-        nextUrl.searchParams.delete(
-          'module_slug'
-        )
-
-        nextUrl.searchParams.delete(
-          'slug'
-        )
-
-        nextUrl.searchParams.delete(
-          'view'
-        )
+        const nextUrl = buildDashboardUrl({
+          section: 'challenges',
+          moduleSlug,
+        })
 
         const historyState = {
           section: 'challenges',
-          moduleId,
           moduleSlug,
         }
 
         if (replaceUrl) {
-          window.history.replaceState(
-            historyState,
-            '',
-            nextUrl
-          )
+          window.history.replaceState(historyState, '', nextUrl)
         } else {
-          window.history.pushState(
-            historyState,
-            '',
-            nextUrl
-          )
+          window.history.pushState(historyState, '', nextUrl)
         }
 
-        if (
-          typeof setActiveSection ===
-          'function'
-        ) {
-          setActiveSection(
-            'challenges'
-          )
-
+        if (typeof setActiveSection === 'function') {
+          setActiveSection('challenges', {
+            preserveModuleContext: true,
+            skipUrl: true,
+          })
           return
         }
 
-        window.location.assign(
-          nextUrl.href
-        )
+        window.location.assign(nextUrl)
       },
       [setActiveSection]
     )
@@ -1174,7 +912,7 @@ function LearningSection({
         }
 
         const actionKey =
-          `${module.id}:${target}`
+          `${getModuleSlug(module)}:${target}`
 
         setOpeningAction(
           actionKey
@@ -1189,7 +927,7 @@ function LearningSection({
            */
           const moduleDetail =
             await fetchModuleDetail(
-              module.id
+              getModuleSlug(module)
             )
 
           if (
@@ -1279,29 +1017,9 @@ function LearningSection({
         restoredModuleRef.current =
           ''
 
-        const nextUrl =
-          new URL(
-            window.location.href
-          )
-
-        const moduleQueryParams = [
-          'module',
-          'moduleId',
-          'moduleSlug',
-          'module_slug',
-          'slug',
-          'target',
-          'view',
-          'section',
-        ]
-
-        moduleQueryParams.forEach(
-          (parameterName) => {
-            nextUrl.searchParams.delete(
-              parameterName
-            )
-          }
-        )
+        const nextUrl = buildDashboardUrl({
+          section: 'learning',
+        })
 
         const moduleStorageKeys = [
           STORAGE_KEYS
@@ -1400,31 +1118,19 @@ function LearningSection({
       return
     }
 
-    const searchParams =
-      new URLSearchParams(
-        window.location.search
-      )
-
-    const currentSection =
-      searchParams.get('section')
+    const parsedLocation = parseDashboardLocation()
 
     /*
      * Si le dashboard affiche une autre section,
      * Learning ne restaure rien.
      */
-    if (
-      currentSection &&
-      currentSection !== 'learning'
-    ) {
+    if (parsedLocation.section !== 'learning') {
       return
     }
 
-    const moduleSlug =
-      String(
-        searchParams.get(
-          'module'
-        ) || ''
-      ).trim()
+    const moduleSlug = String(
+      parsedLocation.moduleSlug || ''
+    ).trim()
 
     if (!moduleSlug) {
       if (
@@ -1448,8 +1154,7 @@ function LearningSection({
     }
 
     const requestedTarget =
-      searchParams.get('view') ===
-      MODULE_TARGETS.QUIZ
+      parsedLocation.view === MODULE_TARGETS.QUIZ
         ? MODULE_TARGETS.QUIZ
         : MODULE_TARGETS.READ
 
@@ -1494,13 +1199,13 @@ function LearningSection({
       restoreKey
 
     setOpeningAction(
-      `${matchingModule.id}:${requestedTarget}`
+      `${getModuleSlug(matchingModule)}:${requestedTarget}`
     )
 
     let cancelled = false
 
     fetchModuleDetail(
-      matchingModule.id
+      getModuleSlug(matchingModule)
     )
       .then((moduleDetail) => {
         if (cancelled) {
@@ -1865,6 +1570,15 @@ function LearningSection({
             true
           )
         }
+        onMarkedRead={async (progression) => {
+          setSelectedModule((current) => ({
+            ...current,
+            est_lu: true,
+            progression,
+          }))
+
+          await loadModules()
+        }}
       />
     )
   }
@@ -1878,24 +1592,9 @@ function LearningSection({
       MODULE_VIEWS.QUIZ &&
     selectedModule
   ) {
-    const moduleQuestions =
-      selectedModule?.quiz
-        ?.questions ??
-      selectedModule?.questions ??
-      selectedModule
-        ?.quiz_questions ??
-      []
-
     return (
       <Quiz
         module={selectedModule}
-        questions={
-          Array.isArray(
-            moduleQuestions
-          )
-            ? moduleQuestions
-            : []
-        }
         onBack={() =>
           handleBackToModules()
         }
@@ -1910,15 +1609,23 @@ function LearningSection({
             selectedModule
           )
         }
-        onSubmit={async (
-          quizResult
-        ) => {
-          console.log(
-            'Résultat du quiz :',
-            quizResult
-          )
+        onSubmit={async (quizResult) => {
+          console.log('Résultat du quiz :', quizResult)
 
-         
+          try {
+            const refreshedModule =
+              await fetchModuleDetail(
+                getModuleSlug(selectedModule)
+              )
+
+            setSelectedModule(refreshedModule)
+            await loadModules()
+          } catch (refreshError) {
+            console.error(
+              'Impossible de rafraîchir la progression après le quiz :',
+              refreshError
+            )
+          }
         }}
       />
     )
@@ -2114,7 +1821,7 @@ function LearningSection({
                         />
                       )}
 
-                   
+
                       <div className="learning-page__cover-badges">
                         <span className="learning-page__cover-level">
                           {module?.niveau ||
@@ -2173,7 +1880,7 @@ function LearningSection({
                     </div>
 
                     <div className="learning-page__body">
-                      
+
                       <h2 className="learning-page__module-title">
                         {module?.titre ||
                           `${labels.module} ${moduleOrder}`}

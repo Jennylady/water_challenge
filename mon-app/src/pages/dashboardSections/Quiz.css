@@ -1390,3 +1390,27 @@
       0.01ms !important;
   }
 }
+.quiz-page__history-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.quiz-page__history-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.58rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(15, 118, 110, 0.06);
+  font-size: 0.82rem;
+}
+
+.quiz-page__history-list strong {
+  white-space: nowrap;
+}
+
+.quiz-page__result-points {
+  margin-top: 0.4rem;
+}
