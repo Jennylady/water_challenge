@@ -24,17 +24,8 @@ import ProfileSection from './dashboardSections/ProfileSection'
 import HelpSection from './dashboardSections/HelpSection'
 
 import { getDashboardData } from './dashboardSections/dashboardData'
-import { label } from 'framer-motion/client'
 
-/*
- * Liste des sections autorisées dans le hash.
- *
- * Exemples :
- * #dashboard
- * #learning
- * #challenges
- * #submit
- */
+
 const DASHBOARD_SECTIONS = [
   'dashboard',
   'learning',
@@ -44,7 +35,6 @@ const DASHBOARD_SECTIONS = [
   'projects',
   'community',
   'badges',
-
   'profile',
   'aide',
   'deconnexion'
@@ -408,6 +398,141 @@ function Dashboard({
   ]
 
   /*
+   * Nettoie les informations d'un module qui ne doivent
+   * plus rester actives dans l'URL ou dans sessionStorage.
+   *
+   * Seule l'ouverture de Challenges depuis un module
+   * Learning conserve moduleId.
+   */
+  const clearLearningModuleContext = (
+    nextSection
+  ) => {
+    if (
+      typeof window === 'undefined'
+    ) {
+      return
+    }
+
+    const nextUrl =
+      new URL(
+        window.location.href
+      )
+
+    const moduleQueryParams = [
+      'module',
+      'moduleSlug',
+      'module_slug',
+      'slug',
+      'target',
+      'view',
+    ]
+
+    const learningStorageKeys = [
+      'waterChallengeSelectedModule',
+      'waterChallengeCurrentModule',
+      'waterChallengeModuleTarget',
+      'waterChallengeModuleNavigation',
+    ]
+
+    const challengeStorageKeys = [
+      'waterChallengeChallengeModule',
+      'waterChallengeChallengeModuleId',
+      'waterChallengeChallengeModuleSlug',
+    ]
+
+    /*
+     * Ce cas est vrai uniquement lorsque LearningSection
+     * vient d'exécuter openChallengePage().
+     *
+     * Un clic ordinaire sur le menu Challenges ne doit pas
+     * réutiliser le module précédent.
+     */
+    const opensChallengesFromModule =
+      nextSection === 'challenges' &&
+      activeSection === 'learning' &&
+      Boolean(
+        nextUrl.searchParams.get(
+          'moduleId'
+        )
+      )
+
+    learningStorageKeys.forEach(
+      (storageKey) => {
+        sessionStorage.removeItem(
+          storageKey
+        )
+      }
+    )
+
+    if (!opensChallengesFromModule) {
+      challengeStorageKeys.forEach(
+        (storageKey) => {
+          sessionStorage.removeItem(
+            storageKey
+          )
+        }
+      )
+    }
+
+    moduleQueryParams.forEach(
+      (parameterName) => {
+        nextUrl.searchParams.delete(
+          parameterName
+        )
+      }
+    )
+
+    if (opensChallengesFromModule) {
+      nextUrl.searchParams.set(
+        'section',
+        'challenges'
+      )
+    } else {
+      /*
+       * Le catalogue Learning et les sections générales
+       * ne doivent conserver ni slug ni UUID de module.
+       */
+      nextUrl.searchParams.delete(
+        'moduleId'
+      )
+
+      nextUrl.searchParams.delete(
+        'section'
+      )
+    }
+
+    window.history.replaceState(
+      {
+        ...(window.history.state ||
+          {}),
+        section: nextSection,
+      },
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+    )
+
+    /*
+     * Si Learning est déjà affiché, React ne remonte pas
+     * automatiquement le composant. Cet événement demande
+     * à LearningSection de relire l'URL nettoyée et de
+     * revenir immédiatement au catalogue.
+     */
+    if (nextSection === 'learning') {
+      window.dispatchEvent(
+        new PopStateEvent(
+          'popstate',
+          {
+            state: {
+              section:
+                'learning',
+            },
+          }
+        )
+      )
+    }
+  }
+
+  /*
    * Navigation interne du Dashboard.
    *
    * Chaque section est également enregistrée
@@ -427,6 +552,10 @@ function Dashboard({
 
       return
     }
+
+    clearLearningModuleContext(
+      sectionId
+    )
 
     setActiveSection(sectionId)
     setShowMobileMenu(false)
@@ -595,6 +724,10 @@ function Dashboard({
       () => {
         const sectionFromHash =
           getSectionFromHash()
+
+        clearLearningModuleContext(
+          sectionFromHash
+        )
 
         setActiveSection(
           sectionFromHash

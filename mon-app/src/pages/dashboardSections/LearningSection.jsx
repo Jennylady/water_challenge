@@ -52,9 +52,7 @@ const STORAGE_KEYS = {
     'waterChallengeChallengeModuleSlug',
 }
 
-/* =========================================================
-   UTILITAIRES
-   ========================================================= */
+
 
 const getModuleSlug = (module) => {
   return String(
@@ -65,10 +63,7 @@ const getModuleSlug = (module) => {
 }
 
 const isModuleAccessible = (module) => {
-  /*
-   * Le module est verrouillé seulement si
-   * le backend retourne explicitement false.
-   */
+ 
   return module?.est_accessible !== false
 }
 
@@ -1031,10 +1026,13 @@ function LearningSection({
             moduleDetail
           )
 
-        if (
-          !moduleId ||
-          !moduleSlug
-        ) {
+        /*
+         * Pour retrouver les challenges associés,
+         * l’UUID du module est la référence fiable.
+         * Le slug reste uniquement une information
+         * secondaire enregistrée en sessionStorage.
+         */
+        if (!moduleId) {
           setActionError(
             'Impossible d’identifier le module pour ouvrir ses challenges.'
           )
@@ -1050,12 +1048,19 @@ function LearningSection({
             moduleId
           )
 
-          sessionStorage.setItem(
-            STORAGE_KEYS
-              .CHALLENGE_MODULE_SLUG,
+          if (moduleSlug) {
+            sessionStorage.setItem(
+              STORAGE_KEYS
+                .CHALLENGE_MODULE_SLUG,
 
-            moduleSlug
-          )
+              moduleSlug
+            )
+          } else {
+            sessionStorage.removeItem(
+              STORAGE_KEYS
+                .CHALLENGE_MODULE_SLUG
+            )
+          }
 
           sessionStorage.setItem(
             STORAGE_KEYS
@@ -1082,13 +1087,29 @@ function LearningSection({
           'challenges'
         )
 
+        /*
+         * ChallengesSection filtre désormais avec
+         * moduleId, pas avec le slug du module.
+         */
         nextUrl.searchParams.set(
-          'module',
-          moduleSlug
+          'moduleId',
+          moduleId
         )
 
         nextUrl.searchParams.delete(
-          'moduleId'
+          'module'
+        )
+
+        nextUrl.searchParams.delete(
+          'moduleSlug'
+        )
+
+        nextUrl.searchParams.delete(
+          'module_slug'
+        )
+
+        nextUrl.searchParams.delete(
+          'slug'
         )
 
         nextUrl.searchParams.delete(
@@ -1263,21 +1284,57 @@ function LearningSection({
             window.location.href
           )
 
-        nextUrl.searchParams.set(
+        const moduleQueryParams = [
+          'module',
+          'moduleId',
+          'moduleSlug',
+          'module_slug',
+          'slug',
+          'target',
+          'view',
           'section',
-          'learning'
+        ]
+
+        moduleQueryParams.forEach(
+          (parameterName) => {
+            nextUrl.searchParams.delete(
+              parameterName
+            )
+          }
         )
 
-        nextUrl.searchParams.delete(
-          'module'
-        )
+        const moduleStorageKeys = [
+          STORAGE_KEYS
+            .SELECTED_MODULE,
+          STORAGE_KEYS
+            .CURRENT_MODULE,
+          STORAGE_KEYS
+            .MODULE_TARGET,
+          STORAGE_KEYS
+            .MODULE_NAVIGATION,
+          STORAGE_KEYS
+            .CHALLENGE_MODULE,
+          STORAGE_KEYS
+            .CHALLENGE_MODULE_ID,
+          STORAGE_KEYS
+            .CHALLENGE_MODULE_SLUG,
+        ]
 
-        nextUrl.searchParams.delete(
-          'moduleId'
-        )
-
-        nextUrl.searchParams.delete(
-          'view'
+        moduleStorageKeys.forEach(
+          (storageKey) => {
+            try {
+              sessionStorage.removeItem(
+                storageKey
+              )
+            } catch (
+              storageError
+            ) {
+              console.error(
+                'Impossible de supprimer le contexte du module :',
+                storageError
+              )
+            }
+          }
         )
 
         if (replaceUrl) {
@@ -1372,14 +1429,20 @@ function LearningSection({
     if (!moduleSlug) {
       if (
         activeView !==
-        MODULE_VIEWS.CATALOG
+          MODULE_VIEWS.CATALOG ||
+        selectedModule
       ) {
         setSelectedModule(null)
 
         setActiveView(
           MODULE_VIEWS.CATALOG
         )
+
+        setOpeningAction('')
       }
+
+      restoredModuleRef.current =
+        ''
 
       return
     }

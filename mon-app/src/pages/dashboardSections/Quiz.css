@@ -32,7 +32,7 @@
 
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
 
   font-family:
     "Nunito",
@@ -96,7 +96,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 22px;
+  gap: 10px;
 
   border: 1px solid var(--quiz-border);
   border-radius: 19px;
@@ -585,7 +585,154 @@
 }
 
 /* =========================================================
-   EXPLICATION
+   RÉPONSE COURTE
+   ========================================================= */
+
+.quiz-page__short-answer {
+  display: grid;
+  gap: 10px;
+}
+
+.quiz-page__short-answer textarea {
+  width: 100%;
+  padding: 12px 13px;
+  resize: vertical;
+
+  border: 1px solid #e1ebfa;
+  border-radius: 12px;
+
+  background: #f8fbff;
+  color: var(--quiz-dark);
+
+  font-family: inherit;
+  font-size: 10.5px;
+  line-height: 1.55;
+  font-weight: 800;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.quiz-page__short-answer textarea:focus {
+  outline: none;
+
+  border-color: var(--quiz-primary);
+  background: var(--quiz-white);
+
+  box-shadow:
+    0 0 0 3px
+      rgba(18, 107, 255, 0.12);
+}
+
+.quiz-page__short-answer textarea:disabled {
+  background: #eef1f5;
+  color: #98a2b3;
+
+  cursor: not-allowed;
+}
+
+.quiz-page__short-answer button {
+  justify-self: start;
+
+  min-height: 38px;
+  padding: 9px 16px;
+
+  border: 0;
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--quiz-primary),
+      var(--quiz-primary-dark)
+    );
+
+  color: var(--quiz-white);
+
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 1000;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.quiz-page__short-answer button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.quiz-page__short-answer button:disabled {
+  background: #e4e7ec;
+  color: #98a2b3;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   VÉRIFICATION VRAI / FAUX (feedback par question)
+   ========================================================= */
+
+.quiz-page__feedback {
+  margin-top: 17px;
+  padding: 14px;
+
+  border-radius: 12px;
+}
+
+.quiz-page__feedback strong {
+  display: block;
+
+  font-size: 10.5px;
+  font-weight: 1000;
+}
+
+.quiz-page__feedback p {
+  margin: 6px 0 0;
+
+  font-size: 10px;
+  line-height: 1.55;
+  font-weight: 800;
+}
+
+.quiz-page__feedback.is-correct {
+  border: 1px solid #b7e4d1;
+
+  background: #ecfdf3;
+}
+
+.quiz-page__feedback.is-correct strong {
+  color: #027a48;
+}
+
+.quiz-page__feedback.is-correct p {
+  color: #067647;
+}
+
+.quiz-page__feedback.is-incorrect {
+  border: 1px solid #fecdd6;
+
+  background: #fff8f9;
+}
+
+.quiz-page__feedback.is-incorrect strong {
+  color: #c01048;
+}
+
+.quiz-page__feedback.is-incorrect p {
+  color: #a4133c;
+}
+
+.quiz-page__feedback-answer strong {
+  display: inline;
+}
+
+/* =========================================================
+   EXPLICATION (fallback statique, hors correction serveur)
    ========================================================= */
 
 .quiz-page__explanation {
@@ -688,6 +835,15 @@
   cursor: not-allowed;
 }
 
+.quiz-page__submit-hint {
+  padding: 9px 14px;
+
+  color: var(--quiz-muted);
+
+  font-size: 9.5px;
+  font-weight: 1000;
+}
+
 /* =========================================================
    MESSAGE D’ERREUR
    ========================================================= */
@@ -762,6 +918,24 @@
       rgba(2, 122, 72, 0.07);
 }
 
+.quiz-page__result.is-success {
+  border-color: #b7e4d1;
+  background: #ecfdf3;
+
+  box-shadow:
+    0 13px 30px
+      rgba(2, 122, 72, 0.07);
+}
+
+.quiz-page__result.is-failure {
+  border-color: #fecdd6;
+  background: #fff8f9;
+
+  box-shadow:
+    0 13px 30px
+      rgba(192, 16, 72, 0.07);
+}
+
 .quiz-page__result-icon {
   font-size: 29px;
 }
@@ -775,6 +949,11 @@
   font-weight: 1000;
 }
 
+.quiz-page__result.is-failure
+  .quiz-page__result-content h3 {
+  color: #c01048;
+}
+
 .quiz-page__result-content p {
   margin: 0;
 
@@ -783,6 +962,11 @@
   font-size: 9.5px;
   line-height: 1.5;
   font-weight: 800;
+}
+
+.quiz-page__result.is-failure
+  .quiz-page__result-content p {
+  color: #a4133c;
 }
 
 .quiz-page__result-actions {
@@ -814,6 +998,14 @@
 
   background: #fff9e8;
   color: #9a6700;
+}
+
+.quiz-page__result-actions
+  button.is-lesson {
+  border-color: #c9dcff;
+
+  background: var(--quiz-soft);
+  color: var(--quiz-primary);
 }
 
 /* =========================================================
@@ -953,7 +1145,7 @@
 }
 
 /* =========================================================
-   ÉTAT VIDE
+   ÉTAT VIDE / CHARGEMENT / ERREUR DE CHARGEMENT
    ========================================================= */
 
 .quiz-page__empty {
@@ -1032,6 +1224,29 @@
   color: #9a6700;
 
   border: 1px solid #ffe099;
+}
+
+.quiz-page__loading > span {
+  animation: quiz-page-spin 1.1s
+    linear infinite;
+}
+
+.quiz-page__load-error {
+  border-color: #fecdd6;
+}
+
+.quiz-page__load-error h2 {
+  color: #c01048;
+}
+
+@keyframes quiz-page-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* =========================================================

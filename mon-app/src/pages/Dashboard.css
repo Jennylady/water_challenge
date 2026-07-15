@@ -47,7 +47,7 @@ textarea {
   width: min(calc(100% - 28px), var(--wc-container));
   /* height: var(--wc-header-height); */
   margin: 0 auto;
-  padding: 15px 22px;
+  padding: 10px 22px;
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -240,7 +240,7 @@ textarea {
 
 .dash-menu {
   display: grid;
-  gap: 7px;
+  gap: 10px;
   border: 1px solid rgba(255,255,255,.2);
   border-radius: 18px;
   padding: 10px 15px;
@@ -849,54 +849,6 @@ textarea {
   box-shadow: none;
 }
 
-/* PROFILE */
-
-.profile-hero {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 24px;
-  align-items: center;
-}
-
-.profile-photo {
-  width: 150px;
-  height: 150px;
-  display: grid;
-  place-items: center;
-  border-radius: 50% 50% 22px 22px;
-  background: linear-gradient(135deg, var(--wc-primary), var(--wc-primary-dark));
-  color: var(--wc-white);
-  font-size: 46px;
-  font-weight: 1000;
-  box-shadow: 0 22px 38px rgba(18, 107, 255, 0.22);
-}
-
-.profile-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-}
-
-.profile-info-item {
-  background: #f8fbff;
-  border: 1px solid var(--wc-border);
-  border-radius: 12px;
-  padding: 14px;
-}
-
-.profile-info-item span {
-  color: var(--wc-muted);
-  font-size: 12px;
-  font-weight: 900;
-  display: block;
-  margin-bottom: 5px;
-}
-
-.profile-info-item strong {
-  color: var(--wc-dark);
-  font-size: 14px;
-  font-weight: 1000;
-}
 
 /* EMPTY */
 
@@ -1109,8 +1061,7 @@ textarea {
     font-size: 28px;
   }
 
-  .dash-hero-card,
-  .profile-hero {
+  .dash-hero-card {
     grid-template-columns: 1fr;
   }
 
@@ -1118,15 +1069,8 @@ textarea {
   .dash-grid-2,
   .dash-grid-3,
   .dash-grid-4,
-  .dash-form-grid,
-  .profile-info-grid {
+  .dash-form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .profile-photo {
-    width: 110px;
-    height: 110px;
-    font-size: 34px;
   }
 }
 
@@ -2299,8 +2243,7 @@ textarea {
 
   .dash-grid-2,
   .dash-grid-3,
-  .dash-form-grid,
-  .profile-info-grid {
+  .dash-form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2322,20 +2265,6 @@ textarea {
   .dash-form textarea {
     padding: 12px 13px;
     font-size: 13px;
-  }
-
-  /* Profil */
-
-  .profile-hero {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    text-align: center;
-  }
-
-  .profile-photo {
-    width: 100px;
-    height: 100px;
-    font-size: 31px;
   }
 
   /* Notifications en panneau inférieur */

@@ -515,14 +515,14 @@
 .read-page__lesson-button:hover {
   transform: translateX(2px);
 
-  border-color: #d5e5ff;
-  background: #f8fbff;
+  /* border-color: #d5e5ff; */
+  /* background: #f8fbff; */
 }
 
 .read-page__lesson-button.is-active {
-  border-color: #bfd5fb;
+  /* border-color: #bfd5fb; */
 
-  background: var(--read-soft);
+  /* background: var(--read-soft); */
   color: var(--read-primary);
 }
 

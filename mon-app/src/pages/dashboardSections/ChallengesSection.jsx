@@ -8,23 +8,27 @@ import {
 import api from '../../api/api'
 import { getCookie } from '../../utils/cookies'
 
+import './ChallengesSection.css'
+
 const ENDPOINT = '/challenges/defis/'
 const CHALLENGES_PER_PAGE = 4
 
-const SELECTED_CHALLENGE_KEY =
-  'waterChallengeSelectedChallenge'
+const STORAGE_KEYS = {
+  SELECTED_CHALLENGE:
+    'waterChallengeSelectedChallenge',
 
-const CURRENT_CHALLENGE_KEY =
-  'waterChallengeCurrentChallenge'
+  CURRENT_CHALLENGE:
+    'waterChallengeCurrentChallenge',
 
-const CHALLENGE_MODULE_KEY =
-  'waterChallengeChallengeModule'
+  CHALLENGE_MODULE:
+    'waterChallengeChallengeModule',
 
-const CHALLENGE_MODULE_ID_KEY =
-  'waterChallengeChallengeModuleId'
+  CHALLENGE_MODULE_ID:
+    'waterChallengeChallengeModuleId',
 
-const CHALLENGE_MODULE_SLUG_KEY =
-  'waterChallengeChallengeModuleSlug'
+  CHALLENGE_MODULE_SLUG:
+    'waterChallengeChallengeModuleSlug',
+}
 
 /* =========================================================
    UTILITAIRES
@@ -86,6 +90,7 @@ const getChallengeModuleTitle = (challenge) => {
     challenge?.module_titre ??
     challenge?.formation_module_titre ??
     challenge?.module_detail?.titre ??
+    challenge?.module_detail?.title ??
     (
       moduleValue &&
       typeof moduleValue === 'object'
@@ -108,25 +113,25 @@ const readStoredModule = () => {
   try {
     const storedValue =
       sessionStorage.getItem(
-        CHALLENGE_MODULE_KEY
+        STORAGE_KEYS.CHALLENGE_MODULE
       )
 
     if (!storedValue) {
       return null
     }
 
-    const parsedModule =
+    const parsedValue =
       JSON.parse(storedValue)
 
     return (
-      parsedModule &&
-      typeof parsedModule === 'object'
-        ? parsedModule
+      parsedValue &&
+      typeof parsedValue === 'object'
+        ? parsedValue
         : null
     )
   } catch (storageError) {
     console.error(
-      'Impossible de récupérer le module enregistré :',
+      'Impossible de lire le module enregistré :',
       storageError
     )
 
@@ -134,17 +139,6 @@ const readStoredModule = () => {
   }
 }
 
-/**
- * Le filtrage n’est actif que lorsque l’URL contient :
- *
- * ?section=challenges&module=slug
- *
- * ou :
- *
- * ?section=challenges&moduleId=uuid
- *
- * Sans ces paramètres, tous les challenges sont affichés.
- */
 const getModuleFilterFromLocation = () => {
   const emptyFilter = {
     isActive: false,
@@ -172,23 +166,17 @@ const getModuleFilterFromLocation = () => {
       searchParams.get('module')
     )
 
-  const isActive = Boolean(
-    urlModuleId ||
-    urlModuleSlug
-  )
-
-  if (!isActive) {
+  if (!urlModuleId && !urlModuleSlug) {
     return emptyFilter
   }
 
-  const storedModule =
-    readStoredModule()
+  const storedModule = readStoredModule()
 
   const storedModuleId =
     normalizeIdentifier(
       storedModule?.id ||
       sessionStorage.getItem(
-        CHALLENGE_MODULE_ID_KEY
+        STORAGE_KEYS.CHALLENGE_MODULE_ID
       )
     )
 
@@ -196,16 +184,9 @@ const getModuleFilterFromLocation = () => {
     normalizeIdentifier(
       storedModule?.slug ||
       sessionStorage.getItem(
-        CHALLENGE_MODULE_SLUG_KEY
+        STORAGE_KEYS.CHALLENGE_MODULE_SLUG
       )
     )
-
-  const storedModuleTitle =
-    String(
-      storedModule?.titre ||
-      storedModule?.title ||
-      ''
-    ).trim()
 
   const idMatches = Boolean(
     urlModuleId &&
@@ -244,7 +225,11 @@ const getModuleFilterFromLocation = () => {
 
     moduleTitle:
       storageMatchesUrl
-        ? storedModuleTitle
+        ? String(
+            storedModule?.titre ||
+            storedModule?.title ||
+            ''
+          ).trim()
         : '',
   }
 }
@@ -298,7 +283,7 @@ const parseCriteria = (value) => {
         .filter(Boolean)
     }
   } catch {
-    // La valeur n’est pas du JSON.
+    // La valeur n'est pas du JSON.
   }
 
   return text
@@ -335,6 +320,11 @@ const formatLevel = (value) => {
   )
 }
 
+/*
+ * Aucun état verrouillé n'est créé ici.
+ * Tous les challenges restent accessibles,
+ * indépendamment des informations d'accès du backend.
+ */
 const getChallengeState = (challenge) => {
   const status =
     normalizeText(
@@ -347,12 +337,6 @@ const getChallengeState = (challenge) => {
         ?.derniere_soumission
         ?.statut
     )
-
-  const lockedStatuses = [
-    'verrouille',
-    'locked',
-    'indisponible',
-  ]
 
   const pendingStatuses = [
     'en_attente',
@@ -383,19 +367,7 @@ const getChallengeState = (challenge) => {
   ]
 
   if (
-    challenge?.est_accessible === false ||
-    lockedStatuses.includes(status)
-  ) {
-    return {
-      key: 'locked',
-      label: 'Verrouillé',
-      icon: '🔒',
-      pillClass: 'dash-pill red',
-    }
-  }
-
-  if (
-    Boolean(challenge?.termine_le) ||
+    challenge?.termine_le ||
     completedStatuses.includes(status) ||
     completedStatuses.includes(
       submissionStatus
@@ -403,26 +375,21 @@ const getChallengeState = (challenge) => {
   ) {
     return {
       key: 'completed',
-      label: 'Terminé',
+      label: 'Déjà réalisé',
       icon: '✅',
-      pillClass: 'dash-pill green',
     }
   }
 
   if (
-    Boolean(
-      challenge
-        ?.a_soumission_en_attente
-    ) ||
+    challenge?.a_soumission_en_attente ||
     pendingStatuses.includes(
       submissionStatus
     )
   ) {
     return {
       key: 'pending',
-      label: 'En attente',
+      label: 'Soumission en attente',
       icon: '⏳',
-      pillClass: 'dash-pill gold',
     }
   }
 
@@ -435,12 +402,11 @@ const getChallengeState = (challenge) => {
       key: 'rejected',
       label: 'À corriger',
       icon: '↻',
-      pillClass: 'dash-pill red',
     }
   }
 
   if (
-    Boolean(challenge?.commence_le) ||
+    challenge?.commence_le ||
     [
       'en_cours',
       'started',
@@ -452,7 +418,6 @@ const getChallengeState = (challenge) => {
       key: 'started',
       label: 'En cours',
       icon: '▶',
-      pillClass: 'dash-pill',
     }
   }
 
@@ -460,40 +425,6 @@ const getChallengeState = (challenge) => {
     key: 'available',
     label: 'Disponible',
     icon: '🏆',
-    pillClass: 'dash-pill green',
-  }
-}
-
-const resolveImageUrl = (imageUrl) => {
-  if (!imageUrl) {
-    return ''
-  }
-
-  if (
-    imageUrl.startsWith('http://') ||
-    imageUrl.startsWith('https://') ||
-    imageUrl.startsWith('data:') ||
-    imageUrl.startsWith('blob:')
-  ) {
-    return imageUrl
-  }
-
-  try {
-    const baseUrl =
-      api?.defaults?.baseURL ||
-      window.location.origin
-
-    const apiOrigin =
-      new URL(
-        baseUrl,
-        window.location.origin
-      ).origin
-
-    return imageUrl.startsWith('/')
-      ? `${apiOrigin}${imageUrl}`
-      : `${apiOrigin}/${imageUrl}`
-  } catch {
-    return imageUrl
   }
 }
 
@@ -503,18 +434,13 @@ const getVisiblePages = (
 ) => {
   if (totalPages <= 5) {
     return Array.from(
-      {
-        length: totalPages,
-      },
+      { length: totalPages },
       (_, index) => index + 1
     )
   }
 
-  let startPage =
-    currentPage - 2
-
-  let endPage =
-    currentPage + 2
+  let startPage = currentPage - 2
+  let endPage = currentPage + 2
 
   if (startPage < 1) {
     startPage = 1
@@ -523,8 +449,7 @@ const getVisiblePages = (
 
   if (endPage > totalPages) {
     endPage = totalPages
-    startPage =
-      totalPages - 4
+    startPage = totalPages - 4
   }
 
   return Array.from(
@@ -553,14 +478,17 @@ function ChallengesSection({
   ] = useState([])
 
   const [
+    selectedChallenge,
+    setSelectedChallenge,
+  ] = useState(null)
+
+  const [
     isLoading,
     setIsLoading,
   ] = useState(true)
 
-  const [
-    error,
-    setError,
-  ] = useState('')
+  const [error, setError] =
+    useState('')
 
   const [
     currentPage,
@@ -576,10 +504,6 @@ function ChallengesSection({
 
   const labels = useMemo(
     () => ({
-      kicker:
-        t?.challenges?.kicker ||
-        'Passe à l’action',
-
       title:
         t?.challenges?.title ||
         'Challenges',
@@ -592,39 +516,22 @@ function ChallengesSection({
         t?.challenges?.objective ||
         'Objectif',
 
-      difficulty:
-        t?.challenges?.difficulty ||
-        'Niveau',
-
-      duration:
-        t?.challenges?.duration ||
-        'Durée',
+      expectedResult:
+        'Résultat attendu',
 
       instructions:
         t?.challenges?.instructions ||
         'Critères de validation',
 
-      submit:
-        t?.challenges?.submit ||
-        'Soumettre mon activité',
-
-      expectedResult:
-        'Résultat attendu',
-
       requiredProofs:
         'Preuves demandées',
 
-      retry:
-        'Réessayer',
+      retry: 'Réessayer',
+      previous: 'Précédent',
+      next: 'Suivant',
 
       empty:
-        'Aucun défi disponible pour le moment.',
-
-      previous:
-        'Précédent',
-
-      next:
-        'Suivant',
+        'Aucun challenge disponible pour le moment.',
     }),
     [t]
   )
@@ -667,7 +574,7 @@ function ChallengesSection({
             responseData.erreur ||
             responseData.detail ||
             responseData.message ||
-            'Impossible de récupérer les défis.'
+            'Impossible de récupérer les challenges.'
           )
         }
 
@@ -695,12 +602,12 @@ function ChallengesSection({
           ) => {
             return (
               Number(
-                firstChallenge
-                  ?.ordre ?? 0
+                firstChallenge?.ordre ??
+                  0
               ) -
               Number(
-                secondChallenge
-                  ?.ordre ?? 0
+                secondChallenge?.ordre ??
+                  0
               )
             )
           }
@@ -713,40 +620,22 @@ function ChallengesSection({
         setCurrentPage(1)
       } catch (requestError) {
         console.error(
-          'Erreur de récupération des défis :',
+          'Erreur de récupération des challenges :',
           requestError
         )
-
-        const status =
-          requestError
-            ?.response
-            ?.status
 
         const responseData =
           requestError
             ?.response
             ?.data
 
-        if (status === 401) {
-          setError(
-            'Votre session a expiré. Veuillez vous reconnecter.'
-          )
-        } else if (status === 403) {
-          setError(
-            responseData?.erreur ||
-            responseData?.detail ||
-            responseData?.message ||
-            'Vous n’avez pas accès aux défis.'
-          )
-        } else {
-          setError(
-            responseData?.erreur ||
-            responseData?.detail ||
-            responseData?.message ||
-            requestError?.message ||
-            'Impossible de charger les défis.'
-          )
-        }
+        setError(
+          responseData?.erreur ||
+          responseData?.detail ||
+          responseData?.message ||
+          requestError?.message ||
+          'Impossible de charger les challenges.'
+        )
 
         setChallenges([])
         setCurrentPage(1)
@@ -759,17 +648,44 @@ function ChallengesSection({
     loadChallenges()
   }, [loadChallenges])
 
-  /**
-   * Synchronise le filtre avec les boutons
-   * précédent et suivant du navigateur.
-   */
+  /* =======================================================
+     SYNCHRONISATION URL / NAVIGATEUR
+     ======================================================= */
+
   useEffect(() => {
     const handlePopState = () => {
+      const searchParams =
+        new URLSearchParams(
+          window.location.search
+        )
+
       setModuleFilter(
         getModuleFilterFromLocation()
       )
 
-      setCurrentPage(1)
+      const challengeId =
+        normalizeIdentifier(
+          searchParams.get(
+            'challengeId'
+          )
+        )
+
+      if (!challengeId) {
+        setSelectedChallenge(null)
+        return
+      }
+
+      const matchingChallenge =
+        challenges.find(
+          (challenge) =>
+            normalizeIdentifier(
+              challenge?.id
+            ) === challengeId
+        )
+
+      setSelectedChallenge(
+        matchingChallenge || null
+      )
     }
 
     window.addEventListener(
@@ -783,10 +699,58 @@ function ChallengesSection({
         handlePopState
       )
     }
-  }, [])
+  }, [challenges])
+
+  /*
+   * Restaure le détail après un rechargement
+   * si challengeId est présent dans l'URL.
+   */
+  useEffect(() => {
+    if (
+      isLoading ||
+      challenges.length === 0 ||
+      selectedChallenge
+    ) {
+      return
+    }
+
+    const searchParams =
+      new URLSearchParams(
+        window.location.search
+      )
+
+    const challengeId =
+      normalizeIdentifier(
+        searchParams.get(
+          'challengeId'
+        )
+      )
+
+    if (!challengeId) {
+      return
+    }
+
+    const matchingChallenge =
+      challenges.find(
+        (challenge) =>
+          normalizeIdentifier(
+            challenge?.id
+          ) === challengeId
+      )
+
+    if (matchingChallenge) {
+      setSelectedChallenge(
+        matchingChallenge
+      )
+    }
+  }, [
+    challenges,
+    isLoading,
+    selectedChallenge,
+  ])
 
   /* =======================================================
-     FILTRAGE
+     FILTRAGE PAR MODULE
      ======================================================= */
 
   const filteredChallenges =
@@ -825,10 +789,7 @@ function ChallengesSection({
               )
           )
 
-          return (
-            matchesId ||
-            matchesSlug
-          )
+          return matchesId || matchesSlug
         }
       )
     }, [
@@ -836,11 +797,6 @@ function ChallengesSection({
       moduleFilter,
     ])
 
-  /**
-   * Si le titre n’était pas disponible dans
-   * sessionStorage, on tente de le retrouver
-   * à partir des challenges reçus.
-   */
   const currentModuleLabel =
     useMemo(() => {
       if (!moduleFilter.isActive) {
@@ -871,80 +827,61 @@ function ChallengesSection({
      PAGINATION
      ======================================================= */
 
-  const totalPages =
-    useMemo(() => {
-      return Math.max(
-        1,
-        Math.ceil(
-          filteredChallenges.length /
+  const totalPages = useMemo(() => {
+    return Math.max(
+      1,
+      Math.ceil(
+        filteredChallenges.length /
           CHALLENGES_PER_PAGE
-        )
       )
-    }, [
-      filteredChallenges.length,
-    ])
+    )
+  }, [filteredChallenges.length])
 
   const paginatedChallenges =
     useMemo(() => {
       const startIndex =
         (
           currentPage - 1
-        ) *
-        CHALLENGES_PER_PAGE
-
-      const endIndex =
-        startIndex +
-        CHALLENGES_PER_PAGE
+        ) * CHALLENGES_PER_PAGE
 
       return filteredChallenges.slice(
         startIndex,
-        endIndex
+        startIndex +
+          CHALLENGES_PER_PAGE
       )
     }, [
       currentPage,
       filteredChallenges,
     ])
 
-  const visiblePages =
-    useMemo(() => {
-      return getVisiblePages(
-        currentPage,
-        totalPages
-      )
-    }, [
+  const visiblePages = useMemo(() => {
+    return getVisiblePages(
       currentPage,
-      totalPages,
-    ])
+      totalPages
+    )
+  }, [currentPage, totalPages])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   const firstDisplayedItem =
     filteredChallenges.length === 0
       ? 0
       : (
-          (
-            currentPage - 1
-          ) *
-          CHALLENGES_PER_PAGE
-        ) + 1
+          currentPage - 1
+        ) *
+          CHALLENGES_PER_PAGE +
+        1
 
   const lastDisplayedItem =
     Math.min(
       currentPage *
-      CHALLENGES_PER_PAGE,
+        CHALLENGES_PER_PAGE,
       filteredChallenges.length
     )
-
-  useEffect(() => {
-    if (
-      currentPage > totalPages
-    ) {
-      setCurrentPage(
-        totalPages
-      )
-    }
-  }, [
-    currentPage,
-    totalPages,
-  ])
 
   const handlePageChange =
     useCallback(
@@ -964,14 +901,11 @@ function ChallengesSection({
           behavior: 'smooth',
         })
       },
-      [
-        currentPage,
-        totalPages,
-      ]
+      [currentPage, totalPages]
     )
 
   /* =======================================================
-     RETIRER LE FILTRE DU MODULE
+     MODULE : VOIR TOUS LES CHALLENGES
      ======================================================= */
 
   const handleShowAllChallenges =
@@ -980,21 +914,22 @@ function ChallengesSection({
         window.location.href
       )
 
-      nextUrl.searchParams.set(
-        'section',
-        'challenges'
-      )
+      const parametersToDelete = [
+        'module',
+        'moduleId',
+        'moduleSlug',
+        'module_slug',
+        'slug',
+        'challengeId',
+        'view',
+      ]
 
-      nextUrl.searchParams.delete(
-        'module'
-      )
-
-      nextUrl.searchParams.delete(
-        'moduleId'
-      )
-
-      nextUrl.searchParams.delete(
-        'view'
+      parametersToDelete.forEach(
+        (parameterName) => {
+          nextUrl.searchParams.delete(
+            parameterName
+          )
+        }
       )
 
       window.history.pushState(
@@ -1007,22 +942,24 @@ function ChallengesSection({
 
       try {
         sessionStorage.removeItem(
-          CHALLENGE_MODULE_ID_KEY
+          STORAGE_KEYS.CHALLENGE_MODULE
         )
 
         sessionStorage.removeItem(
-          CHALLENGE_MODULE_SLUG_KEY
+          STORAGE_KEYS.CHALLENGE_MODULE_ID
         )
 
         sessionStorage.removeItem(
-          CHALLENGE_MODULE_KEY
+          STORAGE_KEYS.CHALLENGE_MODULE_SLUG
         )
       } catch (storageError) {
         console.error(
-          'Impossible de nettoyer le module enregistré :',
+          'Impossible de nettoyer le module :',
           storageError
         )
       }
+
+      setSelectedChallenge(null)
 
       setModuleFilter({
         isActive: false,
@@ -1040,12 +977,12 @@ function ChallengesSection({
     }, [])
 
   /* =======================================================
-     SÉLECTION D’UN CHALLENGE
+     SÉLECTION ET DÉTAIL DU CHALLENGE
      ======================================================= */
 
   const saveSelectedChallenge =
     useCallback((challenge) => {
-      const selectedChallenge = {
+      const selectedValue = {
         ...challenge,
 
         selectedAt:
@@ -1054,117 +991,414 @@ function ChallengesSection({
 
       try {
         sessionStorage.setItem(
-          SELECTED_CHALLENGE_KEY,
-          JSON.stringify(
-            selectedChallenge
-          )
+          STORAGE_KEYS.SELECTED_CHALLENGE,
+          JSON.stringify(selectedValue)
         )
 
         sessionStorage.setItem(
-          CURRENT_CHALLENGE_KEY,
-          JSON.stringify(
-            selectedChallenge
-          )
+          STORAGE_KEYS.CURRENT_CHALLENGE,
+          JSON.stringify(selectedValue)
         )
       } catch (storageError) {
         console.error(
-          'Impossible d’enregistrer le défi sélectionné :',
+          'Impossible d’enregistrer le challenge :',
           storageError
         )
       }
     }, [])
 
-  const handleChallengeAction =
+  const openChallengeDetails =
     useCallback(
       (challenge) => {
-        const state =
-          getChallengeState(
-            challenge
-          )
+        saveSelectedChallenge(challenge)
+        setSelectedChallenge(challenge)
 
-        if (
-          state.key === 'locked'
-        ) {
-          return
-        }
-
-        saveSelectedChallenge(
-          challenge
+        const nextUrl = new URL(
+          window.location.href
         )
 
-        if (
-          typeof setActiveSection !==
-          'function'
-        ) {
-          return
-        }
+        nextUrl.searchParams.set(
+          'section',
+          'challenges'
+        )
 
-        if (
-          state.key === 'pending' ||
-          state.key === 'completed'
-        ) {
-          setActiveSection(
-            'activities'
+        nextUrl.searchParams.set(
+          'challengeId',
+          normalizeIdentifier(
+            challenge?.id
           )
+        )
 
-          return
-        }
+        window.history.pushState(
+          {
+            ...(window.history.state || {}),
+            section: 'challenges',
+            challengeId: challenge?.id,
+          },
+          '',
+          nextUrl
+        )
 
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        })
+      },
+      [saveSelectedChallenge]
+    )
+
+  const closeChallengeDetails =
+    useCallback(() => {
+      setSelectedChallenge(null)
+
+      const nextUrl = new URL(
+        window.location.href
+      )
+
+      nextUrl.searchParams.delete(
+        'challengeId'
+      )
+
+      window.history.pushState(
+        {
+          ...(window.history.state || {}),
+          section: 'challenges',
+        },
+        '',
+        nextUrl
+      )
+
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }, [])
+
+  const continueToSubmission =
+    useCallback(() => {
+      if (!selectedChallenge) {
+        return
+      }
+
+      saveSelectedChallenge(
+        selectedChallenge
+      )
+
+      if (
+        typeof setActiveSection ===
+        'function'
+      ) {
         setActiveSection('submit')
-      },
-      [
-        saveSelectedChallenge,
-        setActiveSection,
-      ]
-    )
-
-  const getButtonLabel =
-    useCallback(
-      (challenge) => {
-        const state =
-          getChallengeState(
-            challenge
-          )
-
-        switch (state.key) {
-          case 'locked':
-            return 'Défi verrouillé'
-
-          case 'pending':
-            return 'Voir ma soumission'
-
-          case 'completed':
-            return 'Voir mon activité'
-
-          case 'started':
-            return 'Continuer le défi'
-
-          case 'rejected':
-            return 'Corriger ma soumission'
-
-          case 'available':
-          default:
-            return labels.submit
-        }
-      },
-      [labels.submit]
-    )
+      }
+    }, [
+      saveSelectedChallenge,
+      selectedChallenge,
+      setActiveSection,
+    ])
 
   /* =======================================================
-     AFFICHAGE
+     AFFICHAGE DU DÉTAIL
+     ======================================================= */
+
+  if (selectedChallenge) {
+    const state = getChallengeState(
+      selectedChallenge
+    )
+
+    const criteria = parseCriteria(
+      selectedChallenge
+        ?.criteres_validation
+    )
+
+    const minimumPhotos = Number(
+      selectedChallenge
+        ?.nombre_photos_min ??
+        0
+    )
+
+    const maximumPhotos = Number(
+      selectedChallenge
+        ?.nombre_photos_max ??
+        0
+    )
+
+    const challengeModuleTitle =
+      getChallengeModuleTitle(
+        selectedChallenge
+      ) ||
+      currentModuleLabel ||
+      'Water Challenge'
+
+    return (
+      <section className="challenges-page challenge-details">
+        <div className="challenge-details__navigation">
+          <button
+            type="button"
+            className="challenge-details__back"
+            onClick={
+              closeChallengeDetails
+            }
+          >
+            <span aria-hidden="true">
+              ←
+            </span>
+
+            Retour aux challenges
+          </button>
+        </div>
+
+        <article className="challenge-details__card">
+          <div className="challenge-details__hero">
+            <span
+              className={[
+                'challenge-card__status',
+                `challenge-card__status--${state.key}`,
+              ].join(' ')}
+            >
+              {state.icon}{' '}
+              {state.label}
+            </span>
+
+            <div className="challenge-details__hero-content">
+              <p>
+                📚 {challengeModuleTitle}
+              </p>
+
+              <h1>
+                {selectedChallenge?.titre ||
+                  'Challenge'}
+              </h1>
+
+              <div className="challenge-details__hero-meta">
+                <span>
+                  🎯{' '}
+                  {formatLevel(
+                    selectedChallenge
+                      ?.niveau
+                  )}
+                </span>
+
+                {selectedChallenge
+                  ?.duree_estimee && (
+                  <span>
+                    ⏱️{' '}
+                    {
+                      selectedChallenge
+                        .duree_estimee
+                    }
+                  </span>
+                )}
+
+                <span>
+                  ⭐{' '}
+                  {Number(
+                    selectedChallenge
+                      ?.points_recompense ??
+                    selectedChallenge
+                      ?.points ??
+                    0
+                  )}{' '}
+                  points
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="challenge-details__body">
+            <section className="challenge-details__section">
+              <span className="challenge-details__section-icon">
+                🎯
+              </span>
+
+              <div>
+                <h2>{labels.objective}</h2>
+
+                <p>
+                  {selectedChallenge
+                    ?.description ||
+                    'Réalisez le challenge en respectant les consignes indiquées.'}
+                </p>
+              </div>
+            </section>
+
+            {selectedChallenge
+              ?.resultat_attendu && (
+              <section className="challenge-details__section">
+                <span className="challenge-details__section-icon">
+                  ✅
+                </span>
+
+                <div>
+                  <h2>
+                    {labels.expectedResult}
+                  </h2>
+
+                  <p>
+                    {
+                      selectedChallenge
+                        .resultat_attendu
+                    }
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {criteria.length > 0 && (
+              <section className="challenge-details__section">
+                <span className="challenge-details__section-icon">
+                  📋
+                </span>
+
+                <div>
+                  <h2>
+                    {labels.instructions}
+                  </h2>
+
+                  <ul className="challenge-details__criteria">
+                    {criteria.map(
+                      (
+                        criterion,
+                        criterionIndex
+                      ) => (
+                        <li
+                          key={`${selectedChallenge.id}-criterion-${criterionIndex}`}
+                        >
+                          <span>✓</span>
+                          {criterion}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            <section className="challenge-details__section">
+              <span className="challenge-details__section-icon">
+                📎
+              </span>
+
+              <div>
+                <h2>
+                  {labels.requiredProofs}
+                </h2>
+
+                <div className="challenge-details__proofs">
+                  {minimumPhotos > 0 && (
+                    <span>
+                      📷 Minimum{' '}
+                      {minimumPhotos}{' '}
+                      photo
+                      {minimumPhotos > 1
+                        ? 's'
+                        : ''}
+                    </span>
+                  )}
+
+                  {maximumPhotos > 0 && (
+                    <span>
+                      🖼️ Maximum{' '}
+                      {maximumPhotos}{' '}
+                      photo
+                      {maximumPhotos > 1
+                        ? 's'
+                        : ''}
+                    </span>
+                  )}
+
+                  {selectedChallenge
+                    ?.video_obligatoire && (
+                    <span>
+                      🎥 Vidéo demandée
+                    </span>
+                  )}
+
+                  {minimumPhotos === 0 &&
+                    maximumPhotos === 0 &&
+                    !selectedChallenge
+                      ?.video_obligatoire && (
+                      <span>
+                        📄 Rapport d’activité
+                      </span>
+                    )}
+                </div>
+              </div>
+            </section>
+
+            {selectedChallenge
+              ?.derniere_soumission && (
+              <section className="challenge-details__submission">
+                <span>
+                  Dernière soumission
+                </span>
+
+                <strong>
+                  {
+                    selectedChallenge
+                      .derniere_soumission
+                      .statut
+                  }
+                </strong>
+              </section>
+            )}
+
+            <div className="challenge-details__notice">
+              <span aria-hidden="true">
+                💡
+              </span>
+
+              <p>
+                Ce challenge peut être réalisé
+                ou soumis à nouveau à tout moment.
+              </p>
+            </div>
+
+            <div className="challenge-details__actions">
+              <button
+                type="button"
+                className="challenge-details__secondary"
+                onClick={
+                  closeChallengeDetails
+                }
+              >
+                Retour
+              </button>
+
+              <button
+                type="button"
+                className="challenge-details__primary"
+                onClick={
+                  continueToSubmission
+                }
+              >
+                <span>
+                  Soumettre une activité
+                </span>
+
+                <span aria-hidden="true">
+                  →
+                </span>
+              </button>
+            </div>
+          </div>
+        </article>
+      </section>
+    )
+  }
+
+  /* =======================================================
+     AFFICHAGE DE LA LISTE
      ======================================================= */
 
   return (
-    <section className="dash-section">
-      <div className="dash-section-heading">
+    <section className="challenges-page">
+      <div className="challenges-page__header">
         <div>
-          <p className="dash-kicker">
-            {labels.kicker}
-          </p>
+          <h1 className="challenges-page__title">
+            {labels.title}
+          </h1>
 
-          <h1>{labels.title}</h1>
-
-          <p>
+          <p className="challenges-page__subtitle">
             {moduleFilter.isActive
               ? `Challenges associés au module ${currentModuleLabel}.`
               : labels.subtitle}
@@ -1172,7 +1406,7 @@ function ChallengesSection({
         </div>
 
         {!isLoading && !error && (
-          <span className="dash-pill">
+          <span className="challenges-page__count">
             🏆{' '}
             {filteredChallenges.length}{' '}
             {filteredChallenges.length > 1
@@ -1185,17 +1419,7 @@ function ChallengesSection({
       {moduleFilter.isActive &&
         !isLoading &&
         !error && (
-          <div
-            className="dash-form-note"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent:
-                'space-between',
-              flexWrap: 'wrap',
-              gap: '12px',
-            }}
-          >
+          <div className="challenge-module-filter">
             <span>
               📚 Challenges du module{' '}
               <strong>
@@ -1205,7 +1429,6 @@ function ChallengesSection({
 
             <button
               type="button"
-              className="dash-light-btn"
               onClick={
                 handleShowAllChallenges
               }
@@ -1215,82 +1438,58 @@ function ChallengesSection({
           </div>
         )}
 
-      {/* CHARGEMENT */}
-
       {isLoading && (
-        <div className="dash-grid-2">
+        <div className="challenges-page__grid">
           {[1, 2, 3, 4].map(
             (item) => (
               <article
-                className="dash-card"
+                className="challenge-card challenge-card--skeleton"
                 key={item}
               >
-                <div className="dash-card-top">
-                  <div>
-                    <span className="dash-pill">
-                      Chargement...
-                    </span>
-
-                    <h3>
-                      Chargement du défi
-                    </h3>
-                  </div>
-
-                  <span className="dash-pill gold">
-                    ...
-                  </span>
+                <div className="challenge-card__body">
+                  <span className="challenge-skeleton challenge-skeleton--pill" />
+                  <span className="challenge-skeleton challenge-skeleton--title" />
+                  <span className="challenge-skeleton" />
+                  <span className="challenge-skeleton challenge-skeleton--short" />
+                  <span className="challenge-skeleton challenge-skeleton--button" />
                 </div>
-
-                <p>
-                  Récupération des
-                  informations du défi...
-                </p>
               </article>
             )
           )}
         </div>
       )}
 
-      {/* ERREUR */}
-
       {!isLoading && error && (
-        <div className="dash-form-card">
-          <div className="dash-card-top">
-            <div>
-              <span className="dash-pill red">
-                ⚠️ Erreur
-              </span>
+        <div className="challenges-page__error">
+          <span aria-hidden="true">
+            ⚠️
+          </span>
 
-              <h3>
-                Impossible de charger
-                les défis
-              </h3>
-            </div>
+          <div>
+            <h2>
+              Impossible de charger les challenges
+            </h2>
+
+            <p>{error}</p>
           </div>
 
-          <p className="dash-form-note">
-            {error}
-          </p>
-
-          <div className="dash-actions-row">
-            <button
-              type="button"
-              className="dash-primary-btn"
-              onClick={loadChallenges}
-            >
-              {labels.retry}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={loadChallenges}
+          >
+            {labels.retry}
+          </button>
         </div>
       )}
 
-      {/* LISTE VIDE */}
-
       {!isLoading &&
         !error &&
-        filteredChallenges.length ===
-          0 && (
-          <div className="dash-empty">
+        filteredChallenges.length === 0 && (
+          <div className="challenges-page__empty">
+            <span aria-hidden="true">
+              🏆
+            </span>
+
             <p>
               {moduleFilter.isActive
                 ? `Aucun challenge n’est associé au module ${currentModuleLabel}.`
@@ -1300,27 +1499,27 @@ function ChallengesSection({
             {moduleFilter.isActive && (
               <button
                 type="button"
-                className="dash-light-btn"
+                className="challenge-details__secondary"
                 onClick={
                   handleShowAllChallenges
                 }
               >
-                Afficher tous les
-                challenges
+                Afficher tous les challenges
               </button>
             )}
           </div>
         )}
 
-      {/* CHALLENGES */}
-
       {!isLoading &&
         !error &&
         filteredChallenges.length > 0 && (
           <>
-            <div className="dash-grid-2">
+            <div className="challenges-page__grid">
               {paginatedChallenges.map(
-                (challenge) => {
+                (
+                  challenge,
+                  challengeIndex
+                ) => {
                   const state =
                     getChallengeState(
                       challenge
@@ -1339,73 +1538,64 @@ function ChallengesSection({
                       0
                     )
 
-                  const maximumPhotos =
-                    Number(
-                      challenge
-                        ?.nombre_photos_max ??
-                      0
-                    )
-
-                  const coverImage =
-                    resolveImageUrl(
-                      challenge
-                        ?.image_couverture_url ??
-                      challenge
-                        ?.image_couverture ??
-                      challenge?.image
-                    )
-
-                  const isLocked =
-                    state.key ===
-                    'locked'
-
                   const challengeModuleTitle =
                     getChallengeModuleTitle(
                       challenge
                     ) ||
+                    currentModuleLabel ||
                     'Water Challenge'
+
+                  const challengeNumber =
+                    (
+                      currentPage - 1
+                    ) *
+                      CHALLENGES_PER_PAGE +
+                    challengeIndex +
+                    1
 
                   return (
                     <article
-                      className="dash-card module-card"
+                      className={[
+                        'challenge-card',
+                        `challenge-card--${state.key}`,
+                        moduleFilter.isActive
+                          ? 'challenge-card--selected-module'
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                       key={
                         challenge?.id ??
-                        `${getChallengeModuleId(
-                          challenge
-                        )}-${challenge?.ordre}`
+                        challengeNumber
                       }
                     >
-                      {coverImage && (
-                        <div
-                          className="module-image"
-                          style={{
-                            backgroundImage:
-                              `url("${coverImage}")`,
-                          }}
-                          role="img"
-                          aria-label={
-                            challenge?.titre ||
-                            'Image du défi'
-                          }
-                        />
-                      )}
+                      <div className="challenge-card__body">
+                        <div className="challenge-card__topline">
+                          <span className="challenge-card__number">
+                            Défi {challengeNumber}
+                          </span>
 
-                      <div className="module-body">
-                        <div className="dash-card-top">
-                          <div>
-                            <span className="dash-pill">
-                              {
-                                challengeModuleTitle
-                              }
-                            </span>
+                          <span
+                            className={[
+                              'challenge-card__status',
+                              `challenge-card__status--${state.key}`,
+                            ].join(' ')}
+                          >
+                            {state.icon}{' '}
+                            {state.label}
+                          </span>
+                        </div>
 
-                            <h3>
-                              {challenge?.titre ||
-                                'Défi'}
-                            </h3>
-                          </div>
+                        <div className="challenge-card__meta">
+                          <span className="challenge-card__level">
+                            🎯{' '}
+                            {formatLevel(
+                              challenge?.niveau
+                            )}
+                          </span>
 
-                          <span className="dash-pill gold">
+                          <span className="challenge-card__points">
+                            ⭐{' '}
                             {Number(
                               challenge
                                 ?.points_recompense ??
@@ -1416,208 +1606,64 @@ function ChallengesSection({
                           </span>
                         </div>
 
-                        <div className="challenge-meta">
-                          <span
-                            className={
-                              state.pillClass
-                            }
-                          >
-                            {state.icon}{' '}
-                            {state.label}
+                        <p className="challenge-card__module">
+                          📚 {challengeModuleTitle}
+                        </p>
+
+                        <h2>
+                          {challenge?.titre ||
+                            'Challenge'}
+                        </h2>
+
+                        <p className="challenge-card__description">
+                          {challenge?.description ||
+                            'Consultez les détails du challenge avant de soumettre votre activité.'}
+                        </p>
+
+                        <div className="challenge-card__quick-info">
+                          <span>
+                            <strong>⏱️</strong>
+                            <small>Durée</small>
+                            <b>
+                              {challenge
+                                ?.duree_estimee ||
+                                'Libre'}
+                            </b>
                           </span>
 
-                          <span className="dash-pill">
-                            🎯{' '}
-                            {labels.difficulty}
-                            {' : '}
-                            {formatLevel(
-                              challenge?.niveau
-                            )}
+                          <span>
+                            <strong>📋</strong>
+                            <small>Critères</small>
+                            <b>{criteria.length}</b>
                           </span>
 
-                          {challenge
-                            ?.duree_estimee && (
-                            <span className="dash-pill green">
-                              ⏱️{' '}
-                              {labels.duration}
-                              {' : '}
-                              {
-                                challenge
-                                  .duree_estimee
-                              }
-                            </span>
-                          )}
-
-                          {challenge
-                            ?.est_obligatoire && (
-                            <span className="dash-pill red">
-                              📌 Obligatoire
-                            </span>
-                          )}
+                          <span>
+                            <strong>📷</strong>
+                            <small>Photos</small>
+                            <b>
+                              {minimumPhotos > 0
+                                ? minimumPhotos
+                                : '—'}
+                            </b>
+                          </span>
                         </div>
-
-                        {challenge
-                          ?.description && (
-                          <p>
-                            <strong>
-                              {labels.objective}
-                              {' : '}
-                            </strong>
-
-                            {
-                              challenge
-                                .description
-                            }
-                          </p>
-                        )}
-
-                        {challenge
-                          ?.resultat_attendu && (
-                          <>
-                            <h3
-                              style={{
-                                marginTop:
-                                  '18px',
-                              }}
-                            >
-                              {
-                                labels
-                                  .expectedResult
-                              }
-                            </h3>
-
-                            <p>
-                              {
-                                challenge
-                                  .resultat_attendu
-                              }
-                            </p>
-                          </>
-                        )}
-
-                        {criteria.length > 0 && (
-                          <>
-                            <h3
-                              style={{
-                                marginTop:
-                                  '18px',
-                              }}
-                            >
-                              {
-                                labels
-                                  .instructions
-                              }
-                            </h3>
-
-                            <ul className="challenge-instructions">
-                              {criteria.map(
-                                (
-                                  criterion,
-                                  criterionIndex
-                                ) => (
-                                  <li
-                                    key={`${challenge.id}-criterion-${criterionIndex}`}
-                                  >
-                                    {criterion}
-                                  </li>
-                                )
-                              )}
-                            </ul>
-                          </>
-                        )}
-
-                        <h3
-                          style={{
-                            marginTop:
-                              '18px',
-                          }}
-                        >
-                          {
-                            labels
-                              .requiredProofs
-                          }
-                        </h3>
-
-                        <div className="challenge-meta">
-                          {minimumPhotos > 0 && (
-                            <span className="dash-pill">
-                              📷 Minimum{' '}
-                              {minimumPhotos}{' '}
-                              photo
-                              {minimumPhotos > 1
-                                ? 's'
-                                : ''}
-                            </span>
-                          )}
-
-                          {maximumPhotos > 0 && (
-                            <span className="dash-pill">
-                              🖼️ Maximum{' '}
-                              {maximumPhotos}{' '}
-                              photo
-                              {maximumPhotos > 1
-                                ? 's'
-                                : ''}
-                            </span>
-                          )}
-
-                          {challenge
-                            ?.video_obligatoire && (
-                            <span className="dash-pill red">
-                              🎥 Vidéo
-                              obligatoire
-                            </span>
-                          )}
-
-                          {minimumPhotos === 0 &&
-                            maximumPhotos === 0 &&
-                            !challenge
-                              ?.video_obligatoire && (
-                              <span className="dash-pill">
-                                📄 Rapport
-                                d’activité
-                              </span>
-                            )}
-                        </div>
-
-                        {challenge
-                          ?.derniere_soumission && (
-                          <div
-                            className="dash-form-note"
-                            style={{
-                              marginBottom:
-                                '14px',
-                            }}
-                          >
-                            Dernière
-                            soumission :{' '}
-                            <strong>
-                              {
-                                challenge
-                                  .derniere_soumission
-                                  .statut
-                              }
-                            </strong>
-                          </div>
-                        )}
 
                         <button
                           type="button"
-                          className={
-                            isLocked
-                              ? 'dash-secondary-btn'
-                              : 'dash-primary-btn'
-                          }
-                          disabled={isLocked}
+                          className="challenge-card__action"
                           onClick={() =>
-                            handleChallengeAction(
+                            openChallengeDetails(
                               challenge
                             )
                           }
                         >
-                          {getButtonLabel(
-                            challenge
-                          )}
+                          <span>
+                            Voir le challenge
+                          </span>
+
+                          <span aria-hidden="true">
+                            →
+                          </span>
                         </button>
                       </div>
                     </article>
@@ -1626,21 +1672,10 @@ function ChallengesSection({
               )}
             </div>
 
-            {/* PAGINATION */}
-
             {totalPages > 1 && (
-              <div
-                className="dash-actions-row"
-                style={{
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexWrap: 'wrap',
-                  marginTop: '10px',
-                }}
-              >
+              <div className="challenge-pagination">
                 <button
                   type="button"
-                  className="dash-light-btn"
                   disabled={
                     currentPage === 1
                   }
@@ -1653,26 +1688,6 @@ function ChallengesSection({
                   ← {labels.previous}
                 </button>
 
-                {visiblePages[0] > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      className="dash-light-btn"
-                      onClick={() =>
-                        handlePageChange(1)
-                      }
-                    >
-                      1
-                    </button>
-
-                    {visiblePages[0] > 2 && (
-                      <span className="dash-pill">
-                        …
-                      </span>
-                    )}
-                  </>
-                )}
-
                 {visiblePages.map(
                   (page) => (
                     <button
@@ -1680,8 +1695,8 @@ function ChallengesSection({
                       type="button"
                       className={
                         currentPage === page
-                          ? 'dash-primary-btn'
-                          : 'dash-light-btn'
+                          ? 'is-active'
+                          : ''
                       }
                       aria-current={
                         currentPage === page
@@ -1689,9 +1704,7 @@ function ChallengesSection({
                           : undefined
                       }
                       onClick={() =>
-                        handlePageChange(
-                          page
-                        )
+                        handlePageChange(page)
                       }
                     >
                       {page}
@@ -1699,35 +1712,8 @@ function ChallengesSection({
                   )
                 )}
 
-                {visiblePages[
-                  visiblePages.length - 1
-                ] < totalPages && (
-                  <>
-                    {visiblePages[
-                      visiblePages.length - 1
-                    ] < totalPages - 1 && (
-                      <span className="dash-pill">
-                        …
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      className="dash-light-btn"
-                      onClick={() =>
-                        handlePageChange(
-                          totalPages
-                        )
-                      }
-                    >
-                      {totalPages}
-                    </button>
-                  </>
-                )}
-
                 <button
                   type="button"
-                  className="dash-light-btn"
                   disabled={
                     currentPage ===
                     totalPages
@@ -1743,13 +1729,7 @@ function ChallengesSection({
               </div>
             )}
 
-            <p
-              className="dash-form-note"
-              style={{
-                margin: 0,
-                textAlign: 'center',
-              }}
-            >
+            <p className="challenges-page__result-count">
               Affichage de{' '}
               {firstDisplayedItem} à{' '}
               {lastDisplayedItem} sur{' '}

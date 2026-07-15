@@ -1,10 +1,76 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
+import api from '../../api/api'
+import { getCookie } from '../../utils/cookies'
+
 import './Quiz.css'
+
+// ---------------------------------------------------------------------------
+// Client API — même pattern que LearningSection.jsx (cookies, pas de
+// localStorage pour le token).
+// ---------------------------------------------------------------------------
+
+const getAccessToken = () =>
+  getCookie('accessToken') ||
+  getCookie('access') ||
+  ''
+
+const fetchQuizData = async (moduleId) => {
+  const accessToken = getAccessToken()
+
+  if (!accessToken) {
+    throw new Error(
+      "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
+    )
+  }
+
+  const response = await api.get(
+    `/formation/modules/${moduleId}/quiz/`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  return response?.data
+}
+
+const saveReponse = async (
+  tentativeId,
+  questionId,
+  payload
+) => {
+  const accessToken = getAccessToken()
+
+  if (!accessToken) {
+    throw new Error(
+      "Aucun jeton d'accès trouvé. Veuillez vous reconnecter."
+    )
+  }
+
+  const response = await api.post(
+    `/formation/quiz/tentatives/${tentativeId}/questions/${questionId}/reponse/`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  return response?.data
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de normalisation des données (compatibles avec les champs FR
+// renvoyés par l'API : texte, choix, bonnes_reponses, est_correcte, etc.)
+// ---------------------------------------------------------------------------
 
 const getModuleSlug = (module) =>
   String(
@@ -128,130 +194,290 @@ const getOptionText = (
   )
 }
 
-const isMultipleQuestion = (question) => {
-  const questionType = String(
+const getQuestionType = (question) =>
+  String(
     question?.type ||
       question?.question_type ||
       ''
   ).toLowerCase()
 
+const isShortAnswerQuestion = (question) => {
+  const type = getQuestionType(question)
+
+  return Boolean(
+    type === 'reponse_courte' ||
+      question?.reponse_libre ||
+      question?.texte_libre
+  )
+}
+
+const isMultipleQuestion = (question) => {
+  const type = getQuestionType(question)
+
   return Boolean(
     question?.multiple ||
       question?.plusieurs_reponses ||
       question?.choix_multiple ||
-      questionType === 'multiple' ||
-      questionType === 'checkbox'
+      type === 'multiple' ||
+      type === 'checkbox' ||
+      type === 'choix_multiple'
   )
 }
 
-const getCorrectOptionIds = (question) => {
-  const directCorrectAnswers =
-    question?.bonnes_reponses ??
-    question?.reponses_correctes ??
-    question?.correct_answers ??
-    question?.correct_option_ids ??
-    question?.bonne_reponse ??
-    question?.reponse_correcte ??
-    question?.correct_answer
+// Best-effort : si l'API renvoie déjà une réponse enregistrée dans l'objet
+// question (nom de champ non spécifié dans la doc), on la récupère pour
+// pré-remplir l'état local après un rechargement de page.
+const getExistingAnswerState = (question) => {
+  const savedChoiceIds =
+    question?.choix_ids ??
+    question?.reponse_choix_ids ??
+    question?.mes_choix ??
+    question?.reponse_utilisateur?.choix_ids
+
+  const savedText =
+    question?.reponse_texte ??
+    question?.ma_reponse ??
+    question?.reponse_utilisateur?.reponse_texte
+
+  const rawResult =
+    question?.reponse_utilisateur ??
+    question?.ma_reponse_correction
+
+  const result =
+    rawResult &&
+    typeof rawResult?.est_correcte === 'boolean'
+      ? {
+          estCorrecte: rawResult.est_correcte,
+          correction: rawResult.correction,
+          explication: rawResult.explication,
+        }
+      : null
 
   if (
-    directCorrectAnswers !== undefined &&
-    directCorrectAnswers !== null
+    !savedChoiceIds &&
+    !savedText &&
+    !result
   ) {
-    const values = Array.isArray(
-      directCorrectAnswers
-    )
-      ? directCorrectAnswers
-      : [directCorrectAnswers]
-
-    return values.map(String)
+    return null
   }
 
-  return getQuestionOptions(question)
-    .map((option, optionIndex) => ({
-      id: getOptionId(
-        option,
-        optionIndex
-      ),
-      isCorrect: Boolean(
-        option?.est_correcte ??
-          option?.est_correct ??
-          option?.is_correct ??
-          option?.correct
-      ),
-    }))
-    .filter((option) => option.isCorrect)
-    .map((option) => option.id)
+  return {
+    choixIds: Array.isArray(savedChoiceIds)
+      ? savedChoiceIds.map(String)
+      : undefined,
+    reponseTexte: savedText
+      ? String(savedText)
+      : undefined,
+    result,
+  }
 }
 
-const areAnswersEqual = (
-  firstAnswers,
-  secondAnswers
-) => {
-  const first = [...firstAnswers].sort()
-  const second = [...secondAnswers].sort()
+const isAnswerFilled = (value) =>
+  Array.isArray(value)
+    ? value.length > 0
+    : Boolean(
+        value && String(value).trim()
+      )
 
-  if (first.length !== second.length) {
-    return false
+// Le champ "correction" renvoyé par l'API a une forme libre (schéma = {}).
+// On essaie plusieurs formes courantes pour en tirer un texte lisible.
+const formatCorrectionAnswer = (
+  correction,
+  options
+) => {
+  if (!correction) {
+    return ''
   }
 
-  return first.every(
-    (answer, index) =>
-      answer === second[index]
+  if (typeof correction === 'string') {
+    return correction
+  }
+
+  const correctIds =
+    correction?.choix_ids ??
+    correction?.reponse_correcte ??
+    correction?.bonnes_reponses ??
+    correction?.correct_answer
+
+  const idsList = Array.isArray(
+    correctIds
+  )
+    ? correctIds
+    : correctIds !== undefined &&
+        correctIds !== null
+      ? [correctIds]
+      : []
+
+  if (idsList.length > 0) {
+    return idsList
+      .map((id) => {
+        const optionIndex =
+          options.findIndex(
+            (option, index) =>
+              getOptionId(
+                option,
+                index
+              ) === String(id)
+          )
+
+        return optionIndex >= 0
+          ? getOptionText(
+              options[optionIndex],
+              optionIndex
+            )
+          : String(id)
+      })
+      .join(', ')
+  }
+
+  return (
+    correction?.texte ||
+    correction?.reponse_texte ||
+    ''
   )
 }
 
 function Quiz({
   module,
-  questions: receivedQuestions,
   onBack,
   onOpenLesson,
   onOpenChallenge,
   onSubmit,
 }) {
-  const questions = useMemo(() => {
-    if (
-      Array.isArray(receivedQuestions)
-    ) {
-      return receivedQuestions
-    }
-
-    const moduleQuestions =
-      module?.quiz?.questions ??
-      module?.questions ??
-      module?.quiz_questions ??
-      []
-
-    return Array.isArray(moduleQuestions)
-      ? moduleQuestions
-      : []
-  }, [module, receivedQuestions])
+  const [quiz, setQuiz] = useState(null)
+  const [isLoadingQuiz, setIsLoadingQuiz] =
+    useState(true)
+  const [loadError, setLoadError] =
+    useState('')
+  const [reloadToken, setReloadToken] =
+    useState(0)
 
   const [activeQuestionIndex, setActiveQuestionIndex] =
     useState(0)
 
+  // valeur = tableau d'ids (QCM/QCU) ou string (réponse courte)
   const [answers, setAnswers] =
     useState({})
 
-  const [isSubmitted, setIsSubmitted] =
-    useState(false)
+  const [shortAnswerDrafts, setShortAnswerDrafts] =
+    useState({})
 
-  const [isSubmitting, setIsSubmitting] =
-    useState(false)
+  // questionId -> { estCorrecte, correction, explication }
+  const [questionResults, setQuestionResults] =
+    useState({})
 
-  const [submitError, setSubmitError] =
+  const [savingQuestionIds, setSavingQuestionIds] =
+    useState({})
+
+  const [saveError, setSaveError] =
     useState('')
 
-  useEffect(() => {
-    setActiveQuestionIndex(0)
-    setAnswers({})
-    setIsSubmitted(false)
-    setIsSubmitting(false)
-    setSubmitError('')
-  }, [module?.id])
+  const hasNotifiedSubmitRef = useRef(false)
+
+  const questions = quiz?.questions || []
 
   const moduleSlug =
     getModuleSlug(module)
+
+  // ---------------------------------------------------------------------
+  // Chargement du quiz depuis l'API
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    let isCancelled = false
+
+    const moduleId = module?.id
+
+    setAnswers({})
+    setShortAnswerDrafts({})
+    setQuestionResults({})
+    setSavingQuestionIds({})
+    setSaveError('')
+    setActiveQuestionIndex(0)
+    hasNotifiedSubmitRef.current = false
+
+    if (!moduleId) {
+      setQuiz(null)
+      setIsLoadingQuiz(false)
+      setLoadError('')
+
+      return undefined
+    }
+
+    setIsLoadingQuiz(true)
+    setLoadError('')
+
+    fetchQuizData(moduleId)
+      .then((data) => {
+        if (isCancelled) return
+
+        const fetchedQuiz = data?.quiz || null
+
+        setQuiz(fetchedQuiz)
+
+        const initialAnswers = {}
+        const initialDrafts = {}
+        const initialResults = {}
+
+        ;(fetchedQuiz?.questions || []).forEach(
+          (question, questionIndex) => {
+            const questionId = getQuestionId(
+              question,
+              questionIndex
+            )
+
+            const existing =
+              getExistingAnswerState(question)
+
+            if (!existing) return
+
+            if (existing.choixIds?.length) {
+              initialAnswers[questionId] =
+                existing.choixIds
+            } else if (
+              existing.reponseTexte
+            ) {
+              initialAnswers[questionId] =
+                existing.reponseTexte
+              initialDrafts[questionId] =
+                existing.reponseTexte
+            }
+
+            if (existing.result) {
+              initialResults[questionId] =
+                existing.result
+            }
+          }
+        )
+
+        setAnswers(initialAnswers)
+        setShortAnswerDrafts(initialDrafts)
+        setQuestionResults(initialResults)
+      })
+      .catch((error) => {
+        if (isCancelled) return
+
+        console.error(
+          'Erreur lors du chargement du quiz :',
+          error
+        )
+
+        setLoadError(
+          error?.response?.data?.erreur ||
+            error?.response?.data?.detail ||
+            error?.message ||
+            'Impossible de charger le quiz.'
+        )
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingQuiz(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [module?.id, reloadToken])
 
   const currentQuestion =
     questions[activeQuestionIndex]
@@ -266,27 +492,40 @@ function Quiz({
 
   const currentOptions =
     currentQuestion
-      ? getQuestionOptions(
-          currentQuestion
-        )
+      ? getQuestionOptions(currentQuestion)
       : []
 
-  const currentAnswers =
-    answers[currentQuestionId] || []
+  const isCurrentShortAnswer =
+    currentQuestion
+      ? isShortAnswerQuestion(
+          currentQuestion
+        )
+      : false
+
+  const currentAnswers = Array.isArray(
+    answers[currentQuestionId]
+  )
+    ? answers[currentQuestionId]
+    : []
+
+  const currentResult =
+    questionResults[currentQuestionId]
+
+  const isSavingCurrent = Boolean(
+    savingQuestionIds[currentQuestionId]
+  )
 
   const answeredQuestionsCount =
     useMemo(() => {
       return questions.filter(
         (question, questionIndex) => {
-          const questionId =
-            getQuestionId(
-              question,
-              questionIndex
-            )
+          const questionId = getQuestionId(
+            question,
+            questionIndex
+          )
 
-          return (
-            answers[questionId]?.length >
-            0
+          return isAnswerFilled(
+            answers[questionId]
           )
         }
       ).length
@@ -301,56 +540,89 @@ function Quiz({
         )
       : 0
 
-  const quizResult = useMemo(() => {
-    let correctAnswers = 0
-    let correctedQuestions = 0
+  const isFinished =
+    questions.length > 0 &&
+    (answeredQuestionsCount ===
+      questions.length ||
+      (quiz?.statut_tentative &&
+        quiz.statut_tentative !==
+          'en_cours'))
 
-    questions.forEach(
-      (question, questionIndex) => {
-        const correctOptionIds =
-          getCorrectOptionIds(question)
-
-        if (
-          correctOptionIds.length === 0
-        ) {
-          return
-        }
-
-        correctedQuestions += 1
-
-        const questionId =
-          getQuestionId(
-            question,
-            questionIndex
-          )
-
-        const selectedAnswers =
-          answers[questionId] || []
-
-        if (
-          areAnswersEqual(
-            selectedAnswers,
-            correctOptionIds
-          )
-        ) {
-          correctAnswers += 1
-        }
-      }
+  const scoreSummary = useMemo(() => {
+    const correctedEntries = Object.values(
+      questionResults
+    ).filter(
+      (result) =>
+        typeof result?.estCorrecte ===
+        'boolean'
     )
 
-    return {
-      correctAnswers,
-      correctedQuestions,
-      percentage:
-        correctedQuestions > 0
-          ? Math.round(
-              (correctAnswers /
-                correctedQuestions) *
-                100
-            )
-          : null,
+    if (correctedEntries.length === 0) {
+      return null
     }
-  }, [answers, questions])
+
+    const correctCount =
+      correctedEntries.filter(
+        (result) => result.estCorrecte
+      ).length
+
+    return {
+      correct: correctCount,
+      total: correctedEntries.length,
+      percentage: Math.round(
+        (correctCount /
+          correctedEntries.length) *
+          100
+      ),
+    }
+  }, [questionResults])
+
+  // null = pas de correction automatique, donc pas de verdict possible
+  const isSuccess = useMemo(() => {
+    if (!scoreSummary) {
+      return null
+    }
+
+    const seuil = Number(
+      quiz?.score_de_reussite
+    )
+
+    if (!Number.isFinite(seuil)) {
+      return null
+    }
+
+    return (
+      scoreSummary.percentage >= seuil
+    )
+  }, [scoreSummary, quiz?.score_de_reussite])
+
+  useEffect(() => {
+    if (
+      isFinished &&
+      !hasNotifiedSubmitRef.current &&
+      typeof onSubmit === 'function'
+    ) {
+      hasNotifiedSubmitRef.current = true
+
+      onSubmit({
+        moduleId: module?.id,
+        moduleSlug,
+        quizId: quiz?.id,
+        tentativeId: quiz?.tentative_id,
+        totalQuestions: questions.length,
+        score: scoreSummary,
+      })
+    }
+  }, [
+    isFinished,
+    onSubmit,
+    module?.id,
+    moduleSlug,
+    quiz?.id,
+    quiz?.tentative_id,
+    questions.length,
+    scoreSummary,
+  ])
 
   const buildModuleUrl = (
     view = 'quiz'
@@ -387,63 +659,174 @@ function Quiz({
     return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
   }
 
+
+  const saveAnswerToServer = async (
+    question,
+    questionIndex,
+    payload
+  ) => {
+    const questionId = getQuestionId(
+      question,
+      questionIndex
+    )
+
+    if (!quiz?.tentative_id) {
+      setSaveError(
+        "Aucune tentative de quiz active."
+      )
+
+      return
+    }
+
+    setSavingQuestionIds((current) => ({
+      ...current,
+      [questionId]: true,
+    }))
+
+    setSaveError('')
+
+    try {
+      const data = await saveReponse(
+        quiz.tentative_id,
+        questionId,
+        payload
+      )
+
+      const reponse = data?.reponse
+
+      if (
+        reponse &&
+        typeof reponse.est_correcte ===
+          'boolean'
+      ) {
+        setQuestionResults((current) => ({
+          ...current,
+          [questionId]: {
+            estCorrecte:
+              reponse.est_correcte,
+            correction:
+              reponse.correction,
+            explication:
+              reponse.explication,
+          },
+        }))
+      }
+    } catch (error) {
+      console.error(
+        "Erreur pendant l'enregistrement de la réponse :",
+        error
+      )
+
+      setSaveError(
+        error?.response?.data?.erreur ||
+          error?.response?.data?.detail ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Impossible d'enregistrer votre réponse."
+      )
+    } finally {
+      setSavingQuestionIds((current) => ({
+        ...current,
+        [questionId]: false,
+      }))
+    }
+  }
+
   const handleSelectOption = (
     question,
     questionIndex,
     option,
     optionIndex
   ) => {
-    if (isSubmitted) {
+    if (isFinished) {
       return
     }
 
-    const questionId =
-      getQuestionId(
-        question,
-        questionIndex
-      )
+    const questionId = getQuestionId(
+      question,
+      questionIndex
+    )
 
-    const optionId =
-      getOptionId(
-        option,
-        optionIndex
-      )
+    const optionId = getOptionId(
+      option,
+      optionIndex
+    )
 
     const multiple =
       isMultipleQuestion(question)
 
-    setAnswers((currentAnswersState) => {
-      const previousAnswers =
-        currentAnswersState[questionId] ||
-        []
+    const previous =
+      answers[questionId]
 
-      if (!multiple) {
-        return {
-          ...currentAnswersState,
-          [questionId]: [optionId],
-        }
-      }
+    const previousList = Array.isArray(
+      previous
+    )
+      ? previous
+      : []
 
-      const isAlreadySelected =
-        previousAnswers.includes(optionId)
+    const nextList = !multiple
+      ? [optionId]
+      : previousList.includes(optionId)
+        ? previousList.filter(
+            (id) => id !== optionId
+          )
+        : [...previousList, optionId]
 
-      const nextQuestionAnswers =
-        isAlreadySelected
-          ? previousAnswers.filter(
-              (answerId) =>
-                answerId !== optionId
-            )
-          : [
-              ...previousAnswers,
-              optionId,
-            ]
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: nextList,
+    }))
 
-      return {
-        ...currentAnswersState,
-        [questionId]:
-          nextQuestionAnswers,
-      }
-    })
+    saveAnswerToServer(
+      question,
+      questionIndex,
+      { choix_ids: nextList }
+    )
+  }
+
+  const handleShortAnswerChange = (
+    question,
+    questionIndex,
+    value
+  ) => {
+    const questionId = getQuestionId(
+      question,
+      questionIndex
+    )
+
+    setShortAnswerDrafts((current) => ({
+      ...current,
+      [questionId]: value,
+    }))
+  }
+
+  const handleShortAnswerSubmit = (
+    question,
+    questionIndex
+  ) => {
+    const questionId = getQuestionId(
+      question,
+      questionIndex
+    )
+
+    const value = (
+      shortAnswerDrafts[questionId] ?? ''
+    ).trim()
+
+    if (!value) {
+      return
+    }
+
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: value,
+    }))
+
+    saveAnswerToServer(
+      question,
+      questionIndex,
+      { reponse_texte: value }
+    )
   }
 
   const handlePreviousQuestion = () => {
@@ -468,71 +851,14 @@ function Quiz({
   }
 
   const handleRestart = () => {
-    setActiveQuestionIndex(0)
-    setAnswers({})
-    setIsSubmitted(false)
-    setIsSubmitting(false)
-    setSubmitError('')
+    setReloadToken(
+      (currentToken) => currentToken + 1
+    )
 
     window.scrollTo({
       top: 0,
       behavior: 'smooth',
     })
-  }
-
-  const handleSubmit = async () => {
-    if (
-      answeredQuestionsCount !==
-      questions.length
-    ) {
-      setSubmitError(
-        'Veuillez répondre à toutes les questions avant de terminer le quiz.'
-      )
-
-      return
-    }
-
-    setIsSubmitting(true)
-    setSubmitError('')
-
-    const result = {
-      moduleId: module?.id,
-      moduleSlug,
-      answers,
-      totalQuestions:
-        questions.length,
-      correctAnswers:
-        quizResult.correctAnswers,
-      correctedQuestions:
-        quizResult.correctedQuestions,
-      percentage:
-        quizResult.percentage,
-    }
-
-    try {
-      if (
-        typeof onSubmit === 'function'
-      ) {
-        await onSubmit(result)
-      }
-
-      setIsSubmitted(true)
-    } catch (error) {
-      console.error(
-        "Erreur pendant l'envoi du quiz :",
-        error
-      )
-
-      setSubmitError(
-        error?.response?.data?.erreur ||
-          error?.response?.data?.detail ||
-          error?.response?.data?.message ||
-          error?.message ||
-          "Impossible d'envoyer le quiz."
-      )
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   if (!module) {
@@ -564,32 +890,56 @@ function Quiz({
     )
   }
 
+  if (isLoadingQuiz) {
+    return (
+      <section className="quiz-page">
+        <div className="quiz-page__empty quiz-page__loading">
+          <span aria-hidden="true">
+            ⏳
+          </span>
+
+          <h2>Chargement du quiz…</h2>
+        </div>
+      </section>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <section className="quiz-page">
+        <div className="quiz-page__empty quiz-page__load-error">
+          <span aria-hidden="true">
+            ⚠️
+          </span>
+
+          <h2>Impossible de charger le quiz</h2>
+
+          <p>{loadError}</p>
+
+          <div className="quiz-page__empty-actions">
+            <button
+              type="button"
+              onClick={handleRestart}
+            >
+              Réessayer
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenLesson}
+            >
+              Retour à la lecture
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (questions.length === 0) {
     return (
       <section className="quiz-page">
-        <nav
-          className="quiz-page__breadcrumb"
-          aria-label="Fil d’Ariane"
-        >
-          <button
-            type="button"
-            onClick={onBack}
-          >
-            Formation
-          </button>
-
-          <span>/</span>
-
-          <a
-            href={buildModuleUrl('quiz')}
-          >
-            {moduleSlug}
-          </a>
-
-          <span>/</span>
-
-          <strong>Quiz</strong>
-        </nav>
+        
 
         <header className="quiz-page__header">
           <div>
@@ -644,23 +994,11 @@ function Quiz({
             ❓
           </span>
 
-          <h2>Quiz débloqué</h2>
+          <h2>Aucune question disponible</h2>
 
           <p>
-            Le quiz est disponible, mais
-            aucune question n’a encore été
-            transmise au composant.
-          </p>
-
-          <p>
-            L’endpoint actuel du module
-            retourne seulement le champ
-            <strong>
-              {' '}quiz_disponible
-            </strong>
-            . Les questions devront être
-            récupérées depuis l’endpoint du
-            quiz.
+            Ce quiz ne contient encore aucune
+            question de la part du serveur.
           </p>
 
           <div className="quiz-page__empty-actions">
@@ -686,33 +1024,11 @@ function Quiz({
 
   return (
     <section className="quiz-page">
-      <nav
-        className="quiz-page__breadcrumb"
-        aria-label="Fil d’Ariane"
-      >
-        <button
-          type="button"
-          onClick={onBack}
-        >
-          Formation
-        </button>
-
-        <span>/</span>
-
-        <a href={buildModuleUrl('quiz')}>
-          {moduleSlug}
-        </a>
-
-        <span>/</span>
-
-        <strong>Quiz</strong>
-      </nav>
+      
 
       <header className="quiz-page__header">
         <div>
-          <span className="quiz-page__slug">
-            {moduleSlug}
-          </span>
+         
 
           <h1>
             Quiz — {module.titre}
@@ -790,11 +1106,13 @@ function Quiz({
               </span>
 
               <span className="quiz-page__question-type">
-                {isMultipleQuestion(
-                  currentQuestion
-                )
-                  ? 'Plusieurs réponses'
-                  : 'Une seule réponse'}
+                {isCurrentShortAnswer
+                  ? 'Réponse courte'
+                  : isMultipleQuestion(
+                        currentQuestion
+                      )
+                    ? 'Plusieurs réponses'
+                    : 'Une seule réponse'}
               </span>
             </div>
 
@@ -805,7 +1123,53 @@ function Quiz({
               )}
             </h2>
 
-            {currentOptions.length > 0 ? (
+            {isCurrentShortAnswer ? (
+              <div className="quiz-page__short-answer">
+                <textarea
+                  rows={3}
+                  disabled={
+                    isFinished ||
+                    isSavingCurrent
+                  }
+                  value={
+                    shortAnswerDrafts[
+                      currentQuestionId
+                    ] ?? ''
+                  }
+                  onChange={(event) =>
+                    handleShortAnswerChange(
+                      currentQuestion,
+                      activeQuestionIndex,
+                      event.target.value
+                    )
+                  }
+                  placeholder="Votre réponse…"
+                />
+
+                <button
+                  type="button"
+                  disabled={
+                    isFinished ||
+                    isSavingCurrent ||
+                    !(
+                      shortAnswerDrafts[
+                        currentQuestionId
+                      ] || ''
+                    ).trim()
+                  }
+                  onClick={() =>
+                    handleShortAnswerSubmit(
+                      currentQuestion,
+                      activeQuestionIndex
+                    )
+                  }
+                >
+                  {isSavingCurrent
+                    ? 'Enregistrement…'
+                    : 'Valider la réponse'}
+                </button>
+              </div>
+            ) : currentOptions.length > 0 ? (
               <div className="quiz-page__options">
                 {currentOptions.map(
                   (
@@ -848,7 +1212,8 @@ function Quiz({
                           value={optionId}
                           checked={isSelected}
                           disabled={
-                            isSubmitted
+                            isFinished ||
+                            isSavingCurrent
                           }
                           onChange={() =>
                             handleSelectOption(
@@ -886,7 +1251,50 @@ function Quiz({
               </div>
             )}
 
-            {isSubmitted &&
+            {currentResult ? (
+              <div
+                className={[
+                  'quiz-page__feedback',
+                  currentResult.estCorrecte
+                    ? 'is-correct'
+                    : 'is-incorrect',
+                ].join(' ')}
+              >
+                <strong>
+                  {currentResult.estCorrecte
+                    ? '✅ Bonne réponse'
+                    : '❌ Réponse incorrecte'}
+                </strong>
+
+                {!currentResult.estCorrecte && (
+                  <>
+                    {formatCorrectionAnswer(
+                      currentResult.correction,
+                      currentOptions
+                    ) && (
+                      <p className="quiz-page__feedback-answer">
+                        Bonne réponse :{' '}
+                        <strong>
+                          {formatCorrectionAnswer(
+                            currentResult.correction,
+                            currentOptions
+                          )}
+                        </strong>
+                      </p>
+                    )}
+
+                    {currentResult.explication && (
+                      <p>
+                        {
+                          currentResult.explication
+                        }
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              isFinished &&
               getQuestionExplanation(
                 currentQuestion
               ) && (
@@ -899,10 +1307,11 @@ function Quiz({
                     )}
                   </p>
                 </div>
-              )}
+              )
+            )}
           </article>
 
-          {submitError && (
+          {saveError && (
             <div
               className="quiz-page__error"
               role="alert"
@@ -911,12 +1320,12 @@ function Quiz({
                 ⚠️
               </span>
 
-              <p>{submitError}</p>
+              <p>{saveError}</p>
 
               <button
                 type="button"
                 onClick={() =>
-                  setSubmitError('')
+                  setSaveError('')
                 }
                 aria-label="Fermer le message"
               >
@@ -930,8 +1339,7 @@ function Quiz({
               type="button"
               className="quiz-page__previous"
               disabled={
-                activeQuestionIndex === 0 ||
-                isSubmitting
+                activeQuestionIndex === 0
               }
               onClick={
                 handlePreviousQuestion
@@ -946,9 +1354,11 @@ function Quiz({
                 type="button"
                 className="quiz-page__next"
                 disabled={
-                  currentAnswers.length ===
-                    0 ||
-                  isSubmitting
+                  !isAnswerFilled(
+                    answers[
+                      currentQuestionId
+                    ]
+                  )
                 }
                 onClick={
                   handleNextQuestion
@@ -957,58 +1367,76 @@ function Quiz({
                 Question suivante →
               </button>
             ) : (
-              <button
-                type="button"
-                className="quiz-page__submit"
-                disabled={
-                  answeredQuestionsCount !==
-                    questions.length ||
-                  isSubmitted ||
-                  isSubmitting
-                }
-                onClick={handleSubmit}
-              >
-                {isSubmitting
-                  ? 'Envoi...'
-                  : isSubmitted
-                    ? 'Quiz terminé'
-                    : 'Terminer le quiz'}
-              </button>
+              <span className="quiz-page__submit-hint">
+                {isFinished
+                  ? '✓ Quiz complet'
+                  : 'Répondez pour terminer le quiz'}
+              </span>
             )}
           </div>
 
-          {isSubmitted && (
-            <div className="quiz-page__result">
+          {isFinished && (
+            <div
+              className={[
+                'quiz-page__result',
+                isSuccess === true
+                  ? 'is-success'
+                  : isSuccess === false
+                    ? 'is-failure'
+                    : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
               <span
                 className="quiz-page__result-icon"
                 aria-hidden="true"
               >
-                🎉
+                {isSuccess === true
+                  ? '🎉'
+                  : isSuccess === false
+                    ? '💪'
+                    : '✔️'}
               </span>
 
               <div className="quiz-page__result-content">
-                <h3>Quiz terminé</h3>
+                <h3>
+                  {isSuccess === true
+                    ? 'Quiz réussi'
+                    : isSuccess === false
+                      ? 'Quiz à revoir'
+                      : 'Quiz terminé'}
+                </h3>
 
-                {quizResult.percentage !==
-                null ? (
+                {scoreSummary ? (
                   <p>
                     Vous avez obtenu{' '}
                     <strong>
-                      {
-                        quizResult.correctAnswers
-                      }
+                      {scoreSummary.correct}
                       /
-                      {
-                        quizResult.correctedQuestions
-                      }
+                      {scoreSummary.total}
                     </strong>
                     , soit{' '}
                     <strong>
                       {
-                        quizResult.percentage
+                        scoreSummary.percentage
                       }
                       %
                     </strong>
+                    {Number.isFinite(
+                      Number(
+                        quiz?.score_de_reussite
+                      )
+                    ) && (
+                      <>
+                        {' '}
+                        (seuil de réussite :{' '}
+                        {
+                          quiz.score_de_reussite
+                        }
+                        %)
+                      </>
+                    )}
                     .
                   </p>
                 ) : (
@@ -1024,18 +1452,28 @@ function Quiz({
                   type="button"
                   onClick={handleRestart}
                 >
-                  Recommencer
+                  Refaire le quiz
                 </button>
 
-                <button
-                  type="button"
-                  className="is-challenge"
-                  onClick={
-                    onOpenChallenge
-                  }
-                >
-                  Voir les challenges →
-                </button>
+                {isSuccess === false ? (
+                  <button
+                    type="button"
+                    className="is-lesson"
+                    onClick={onOpenLesson}
+                  >
+                    Relire la leçon
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="is-challenge"
+                    onClick={
+                      onOpenChallenge
+                    }
+                  >
+                    Voir les challenges →
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1065,8 +1503,9 @@ function Quiz({
                     )
 
                   const isAnswered =
-                    answers[questionId]
-                      ?.length > 0
+                    isAnswerFilled(
+                      answers[questionId]
+                    )
 
                   const isActive =
                     activeQuestionIndex ===

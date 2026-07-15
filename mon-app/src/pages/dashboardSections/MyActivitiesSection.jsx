@@ -13,7 +13,7 @@ function MyActivitiesSection({ t, activities, setActiveSection }) {
     <section className="dash-section">
       <div className="dash-section-heading">
         <div>
-          <p className="dash-kicker">{t.activities.kicker}</p>
+         
           <h1>{t.activities.title}</h1>
           <p>{t.activities.subtitle}</p>
         </div>
