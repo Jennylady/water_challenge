@@ -16,6 +16,8 @@ from apps.accounts.user.permissions import IsModeratorUser
 from .models import (
     Choix,
     IllustrationModule,
+    ImageIllustrationModule,
+    RessourceModule,
     Module,
     ProgressionModule,
     Question,
@@ -24,6 +26,7 @@ from .models import (
 )
 from .serializers import (
     IllustrationModuleSerializer,
+    RessourceModuleSerializer,
     ModuleAdminSerializer,
     ModuleDetailSerializer,
     ModuleListeSerializer,
@@ -793,15 +796,27 @@ class AjouterIllustrationAdminView(APIView):
             module = _module_admin(module_id)
             if module is None:
                 return reponse_erreur('Module introuvable.', status.HTTP_404_NOT_FOUND)
-            image = request.FILES.get('image')
-            if not image:
-                return reponse_erreur("Le champ 'image' est requis.")
-            illustration = IllustrationModule.objects.create(
-                module=module,
-                image=image,
-                legende=request.data.get('legende') or None,
-                ordre=_int(request.data.get('ordre', 0), minimum=0, nom='ordre'),
-            )
+            images = request.FILES.getlist('images') or request.FILES.getlist('image')
+            titre = (request.data.get('titre') or '').strip()
+            if not titre:
+                return reponse_erreur("Le champ 'titre' est requis.")
+            if not images:
+                return reponse_erreur("Au moins une image est requise dans le champ 'images'.")
+            with transaction.atomic():
+                illustration = IllustrationModule.objects.create(
+                    module=module,
+                    titre=titre,
+                    description=request.data.get('description') or None,
+                    ordre=_int(request.data.get('ordre', 0), minimum=0, nom='ordre'),
+                )
+                ImageIllustrationModule.objects.bulk_create([
+                    ImageIllustrationModule(
+                        illustration=illustration,
+                        image=image,
+                        ordre=index,
+                    )
+                    for index, image in enumerate(images, start=1)
+                ])
             return reponse_succes(
                 'illustration',
                 IllustrationModuleSerializer(
@@ -828,6 +843,45 @@ class SupprimerIllustrationAdminView(APIView):
                 return reponse_erreur('Illustration introuvable.', status.HTTP_404_NOT_FOUND)
             illustration.delete()
             return reponse_succes('illustration', None, message='Illustration supprimée.')
+        except Exception as exc:
+            return _erreur_interne(exc)
+
+
+class AjouterRessourcesModuleAdminView(APIView):
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, module_id):
+        try:
+            module = _module_admin(module_id)
+            if module is None:
+                return reponse_erreur('Module introuvable.', status.HTTP_404_NOT_FOUND)
+            fichiers = request.FILES.getlist('fichiers') or request.FILES.getlist('fichier')
+            if not fichiers:
+                return reponse_erreur("Au moins un fichier est requis dans le champ 'fichiers'.")
+            ressources = [RessourceModule.objects.create(module=module, fichier=f) for f in fichiers]
+            return reponse_succes(
+                'ressources',
+                RessourceModuleSerializer(ressources, many=True, context={'request': request}).data,
+                message='Ressource(s) ajoutée(s).',
+                http_status=status.HTTP_201_CREATED,
+            )
+        except Exception as exc:
+            return _erreur_interne(exc)
+
+
+class SupprimerRessourceModuleAdminView(APIView):
+    permission_classes = [IsModeratorUser]
+    authentication_classes = []
+
+    def delete(self, request, ressource_id):
+        try:
+            ressource = RessourceModule.objects.filter(pk=ressource_id).first()
+            if ressource is None:
+                return reponse_erreur('Ressource introuvable.', status.HTTP_404_NOT_FOUND)
+            ressource.delete()
+            return reponse_succes('ressource', None, message='Ressource supprimée.')
         except Exception as exc:
             return _erreur_interne(exc)
 

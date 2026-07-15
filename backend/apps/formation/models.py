@@ -79,21 +79,54 @@ class Module(models.Model):
 class IllustrationModule(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='illustrations')
-    image = models.FileField(
-        upload_to='formation/modules/illustrations/',
-        help_text="Fichier d'illustration téléversé",
-    )
-    legende = models.CharField(max_length=255, blank=True, null=True)
+    titre = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
     ordre = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = 'formation_illustration_module'
-        ordering = ['ordre']
+        ordering = ['ordre', 'id']
         verbose_name = 'Illustration de module'
         verbose_name_plural = 'Illustrations de module'
 
     def __str__(self):
-        return f'{self.module.titre} - illustration {self.ordre}'
+        return f'{self.module.titre} - {self.titre}'
+
+
+class ImageIllustrationModule(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    illustration = models.ForeignKey(
+        IllustrationModule,
+        on_delete=models.CASCADE,
+        related_name='images',
+    )
+    image = models.FileField(
+        upload_to='formation/modules/illustrations/',
+        help_text="Image appartenant à l'illustration",
+    )
+    ordre = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'formation_image_illustration_module'
+        ordering = ['ordre', 'id']
+        verbose_name = "Image d'illustration"
+        verbose_name_plural = "Images d'illustration"
+
+    def __str__(self):
+        return f'{self.illustration.titre} - image {self.ordre}'
+
+
+class RessourceModule(models.Model):
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='ressources')
+    fichier = models.FileField(upload_to='formation/modules/ressources/')
+
+    class Meta:
+        db_table = 'formation_ressource_module'
+        verbose_name = 'Ressource de module'
+        verbose_name_plural = 'Ressources de module'
+
+    def __str__(self):
+        return self.fichier.name
 
 
 class ProgressionModule(models.Model):

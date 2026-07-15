@@ -3,6 +3,8 @@ from rest_framework import serializers
 from .models import (
     Choix,
     IllustrationModule,
+    ImageIllustrationModule,
+    RessourceModule,
     Module,
     ProgressionModule,
     Question,
@@ -16,13 +18,30 @@ from .models import (
 # Fichiers de module
 # =============================================================================
 
-class IllustrationModuleSerializer(serializers.ModelSerializer):
+class ImageIllustrationModuleSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source='uuid', read_only=True)
     image = serializers.FileField(read_only=True, use_url=True)
 
     class Meta:
+        model = ImageIllustrationModule
+        fields = ['id', 'ordre', 'image']
+
+
+class IllustrationModuleSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source='uuid', read_only=True)
+    images = ImageIllustrationModuleSerializer(many=True, read_only=True)
+
+    class Meta:
         model = IllustrationModule
-        fields = ['id', 'legende', 'ordre', 'image']
+        fields = ['id', 'titre', 'description', 'ordre', 'images']
+
+
+class RessourceModuleSerializer(serializers.ModelSerializer):
+    fichier = serializers.FileField(read_only=True, use_url=True)
+
+    class Meta:
+        model = RessourceModule
+        fields = ['id', 'fichier']
 
 
 # =============================================================================
@@ -233,6 +252,7 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
     image_couverture = serializers.FileField(read_only=True, use_url=True)
     video = serializers.FileField(read_only=True, use_url=True)
     illustrations = serializers.SerializerMethodField()
+    ressources = serializers.SerializerMethodField()
     est_lu = serializers.SerializerMethodField()
     lu_le = serializers.SerializerMethodField()
     est_termine = serializers.SerializerMethodField()
@@ -244,7 +264,7 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
         model = Module
         fields = [
             'id', 'titre', 'slug', 'contenu', 'resume', 'niveau', 'ordre',
-            'video', 'image_couverture', 'illustrations',
+            'video', 'image_couverture', 'illustrations', 'ressources',
             'date_debut', 'date_fin', 'est_accessible',
             'est_lu', 'lu_le', 'est_termine', 'quiz_disponible', 'progression',
         ]
@@ -255,6 +275,13 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
     def get_illustrations(self, obj):
         return IllustrationModuleSerializer(
             obj.illustrations.all(),
+            many=True,
+            context={'request': self.context.get('request')},
+        ).data
+
+    def get_ressources(self, obj):
+        return RessourceModuleSerializer(
+            obj.ressources.all(),
             many=True,
             context={'request': self.context.get('request')},
         ).data
@@ -288,6 +315,7 @@ class ModuleAdminSerializer(serializers.ModelSerializer):
     image_couverture = serializers.FileField(read_only=True, use_url=True)
     video = serializers.FileField(read_only=True, use_url=True)
     illustrations = serializers.SerializerMethodField()
+    ressources = serializers.SerializerMethodField()
     a_un_quiz = serializers.SerializerMethodField()
     nb_participants = serializers.SerializerMethodField()
     est_accessible = serializers.BooleanField(read_only=True)
@@ -297,13 +325,20 @@ class ModuleAdminSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'titre', 'slug', 'contenu', 'resume', 'niveau', 'ordre',
             'est_publie', 'est_ouvert', 'date_debut', 'date_fin', 'est_accessible',
-            'video', 'image_couverture', 'illustrations',
+            'video', 'image_couverture', 'illustrations', 'ressources',
             'a_un_quiz', 'nb_participants', 'cree_le', 'modifie_le',
         ]
 
     def get_illustrations(self, obj):
         return IllustrationModuleSerializer(
             obj.illustrations.all(),
+            many=True,
+            context={'request': self.context.get('request')},
+        ).data
+
+    def get_ressources(self, obj):
+        return RessourceModuleSerializer(
+            obj.ressources.all(),
             many=True,
             context={'request': self.context.get('request')},
         ).data

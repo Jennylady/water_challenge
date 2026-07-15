@@ -4,6 +4,8 @@ from django.utils.html import format_html
 from .models import (
     Choix,
     IllustrationModule,
+    ImageIllustrationModule,
+    RessourceModule,
     Module,
     ProgressionModule,
     Question,
@@ -24,16 +26,36 @@ def apercu_fichier(fichier, hauteur=50):
     return format_html('<img src="{}" style="height:{}px;border-radius:4px;" />', url, hauteur)
 
 
-class IllustrationModuleInline(admin.TabularInline):
-    model = IllustrationModule
+class ImageIllustrationModuleInline(admin.TabularInline):
+    model = ImageIllustrationModule
     extra = 1
-    fields = ['uuid', 'apercu', 'image', 'legende', 'ordre']
+    fields = ['uuid', 'apercu', 'image', 'ordre']
     readonly_fields = ['uuid', 'apercu']
     ordering = ['ordre']
 
     @admin.display(description='Aperçu')
     def apercu(self, obj):
         return apercu_fichier(obj.image, hauteur=60)
+
+
+@admin.register(IllustrationModule)
+class IllustrationModuleAdmin(admin.ModelAdmin):
+    list_display = ['titre', 'module', 'ordre', 'nombre_images']
+    search_fields = ['titre', 'description', 'module__titre']
+    list_filter = ['module']
+    ordering = ['module', 'ordre']
+    readonly_fields = ['uuid']
+    inlines = [ImageIllustrationModuleInline]
+
+    @admin.display(description='Images')
+    def nombre_images(self, obj):
+        return obj.images.count()
+
+
+class RessourceModuleInline(admin.TabularInline):
+    model = RessourceModule
+    extra = 1
+    fields = ['fichier']
 
 
 @admin.register(Module)
@@ -49,7 +71,7 @@ class ModuleAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('titre',)}
     readonly_fields = ['uuid', 'cree_le', 'modifie_le', 'apercu_image_grande']
     date_hierarchy = 'cree_le'
-    inlines = [IllustrationModuleInline]
+    inlines = [RessourceModuleInline]
     actions = ['action_publier', 'action_depublier', 'action_ouvrir', 'action_fermer']
 
     fieldsets = (
