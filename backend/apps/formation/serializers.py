@@ -438,7 +438,7 @@ class TentativeQuizSerializer(serializers.ModelSerializer):
             obj.reponses.select_related('question').prefetch_related('choix_selectionnes'),
             many=True,
         ).data
-
+        
 
 class ClassementEntreeSerializer(serializers.Serializer):
     rang = serializers.IntegerField()

@@ -198,6 +198,8 @@ class SoumettreTentativeQuizAmbassadeurView(APIView):
                 'Quiz réussi !' if tentative.est_reussi
                 else 'Quiz soumis, mais le score est insuffisant.'
             )
+            reponse_soummission = serializer.data
+            reponse_soummission["score_de_reussite"] = tentative.quiz.score_de_reussite
             return reponse_succes('tentative', serializer.data, message=message)
         except ErreurQuiz as exc:
             return reponse_erreur(str(exc))
