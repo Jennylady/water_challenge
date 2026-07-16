@@ -2,6 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import "./LandingPage.css";
 
+import heroFiltrationImage from "../assets/hero-filtration-eau.png";
+import heroNettoyageImage from "../assets/hero-nettoyage-cours-eau.png";
+import heroRecuperationImage from "../assets/hero-recuperation-eau-pluie.png";
+import heroEconomieImage from "../assets/hero-economie-eau.png";
+import heroReparationImage from "../assets/hero-reparation-fuite.png";
+import categoryProtegerSourcesImage from "../assets/categorie-proteger-sources.png";
+import categoryReutiliserImage from "../assets/categorie-reutiliser-eau.png";
+import categoryNettoyerImage from "../assets/categorie-nettoyer-nature.png";
+import categorySensibiliserImage from "../assets/categorie-sensibiliser.png";
+import categoryAmbassadeurImage from "../assets/categorie-ambassadeur-eau.png";
+
 function LandingPage({ onNavigate = () => {} }) {
   const [language, setLanguage] = useState("FR");
   const [wordIndex, setWordIndex] = useState(0);
@@ -161,53 +172,53 @@ function LandingPage({ onNavigate = () => {} }) {
       ? [
           {
             title: "Économiser l’eau",
-            img: "https://images.unsplash.com/photo-1508873699372-7aeab60b44ab?auto=format&fit=crop&w=600&q=80",
+            img: heroEconomieImage,
           },
           {
             title: "Protéger les sources",
-            img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=80",
+            img: categoryProtegerSourcesImage,
           },
           {
             title: "Réutiliser l’eau",
-            img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=600&q=80",
+            img: categoryReutiliserImage,
           },
           {
             title: "Nettoyer la nature",
-            img: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=600&q=80",
+            img: categoryNettoyerImage,
           },
           {
             title: "Sensibiliser",
-            img: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=600&q=80",
+            img: categorySensibiliserImage,
           },
           {
             title: "Ambassadeur de l’Eau",
-            img: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80",
+            img: categoryAmbassadeurImage,
           },
         ]
       : [
           {
             title: "Mitsitsy rano",
-            img: "https://images.unsplash.com/photo-1508873699372-7aeab60b44ab?auto=format&fit=crop&w=600&q=80",
+            img: heroEconomieImage,
           },
           {
             title: "Miaro loharano",
-            img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=80",
+            img: categoryProtegerSourcesImage,
           },
           {
             title: "Mampiasa indray",
-            img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=600&q=80",
+            img: categoryReutiliserImage,
           },
           {
             title: "Manadio tontolo",
-            img: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=600&q=80",
+            img: categoryNettoyerImage,
           },
           {
             title: "Manentana",
-            img: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=600&q=80",
+            img: categorySensibiliserImage,
           },
           {
             title: "Ambasadaoro rano",
-            img: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=600&q=80",
+            img: categoryAmbassadeurImage,
           },
         ];
 
@@ -218,25 +229,25 @@ function LandingPage({ onNavigate = () => {} }) {
             title: "Chasse aux fuites",
             place: "Maison / École",
             points: 25,
-            img: "https://images.unsplash.com/photo-1503881026826-1a5c9600aacf?auto=format&fit=crop&w=700&q=80",
+            img: heroReparationImage,
           },
           {
             title: "Chaque goutte compte",
             place: "Challenge quotidien",
             points: 10,
-            img: "https://images.unsplash.com/photo-1508873699372-7aeab60b44ab?auto=format&fit=crop&w=700&q=80",
+            img: heroEconomieImage,
           },
           {
             title: "Nettoyer un point d’eau",
             place: "Action communautaire",
             points: 100,
-            img: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=700&q=80",
+            img: heroNettoyageImage,
           },
           {
             title: "Créer une affiche",
             place: "École / Quartier",
             points: 50,
-            img: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=700&q=80",
+            img: categorySensibiliserImage,
           },
         ]
       : [
@@ -244,25 +255,25 @@ function LandingPage({ onNavigate = () => {} }) {
             title: "Mitady fivoahan-drano",
             place: "Trano / Sekoly",
             points: 25,
-            img: "https://images.unsplash.com/photo-1503881026826-1a5c9600aacf?auto=format&fit=crop&w=700&q=80",
+            img: heroReparationImage,
           },
           {
             title: "Sarobidy ny rano",
             place: "Fanamby isan’andro",
             points: 10,
-            img: "https://images.unsplash.com/photo-1508873699372-7aeab60b44ab?auto=format&fit=crop&w=700&q=80",
+            img: heroEconomieImage,
           },
           {
             title: "Manadio loharano",
             place: "Asa iombonana",
             points: 100,
-            img: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=700&q=80",
+            img: heroNettoyageImage,
           },
           {
             title: "Mamorona afisy",
             place: "Sekoly / Fokontany",
             points: 50,
-            img: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=700&q=80",
+            img: categorySensibiliserImage,
           },
         ];
 
@@ -430,7 +441,7 @@ function LandingPage({ onNavigate = () => {} }) {
               <p>{t.playCard.profileValue}</p>
             </div>
 
-            <button type="button"onClick={() => onNavigate('login')}>{t.playCard.button}</button>
+            <button type="button" onClick={() => onNavigate('login')}>{t.playCard.button}</button>
           </motion.div>
         </motion.div>
 
@@ -452,40 +463,40 @@ function LandingPage({ onNavigate = () => {} }) {
             <motion.img
               variants={heroImagePop}
               className="wc-img wc-img-one"
-              src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=700&q=80"
-              alt="Eau et nature"
+              src={heroFiltrationImage}
+              alt="Installation de filtration de l’eau"
               whileHover={{ y: -8, scale: 1.03 }}
             />
 
             <motion.img
               variants={heroImagePop}
               className="wc-img wc-img-two"
-              src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&q=80"
-              alt="Paysage naturel"
+              src={heroNettoyageImage}
+              alt="Scouts nettoyant un cours d’eau"
               whileHover={{ y: -8, scale: 1.03 }}
             />
 
             <motion.img
               variants={heroImagePop}
               className="wc-img wc-img-three"
-              src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=700&q=80"
-              alt="Source d'eau"
+              src={heroRecuperationImage}
+              alt="Récupération de l’eau de pluie"
               whileHover={{ y: -8, scale: 1.03 }}
             />
 
             <motion.img
               variants={heroImagePop}
               className="wc-img wc-img-four"
-              src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=700&q=80"
-              alt="Action communautaire"
+              src={heroReparationImage}
+              alt="Réparation d’une fuite d’eau"
               whileHover={{ y: -8, scale: 1.03 }}
             />
 
             <motion.img
               variants={heroImagePop}
               className="wc-img wc-img-five"
-              src="https://images.unsplash.com/photo-1520962922320-2038eebab146?auto=format&fit=crop&w=700&q=80"
-              alt="Océan"
+              src={heroEconomieImage}
+              alt="Geste quotidien pour économiser l’eau"
               whileHover={{ y: -8, scale: 1.03 }}
             />
 
@@ -643,8 +654,8 @@ function LandingPage({ onNavigate = () => {} }) {
 
         <motion.div className="wc-action-image" whileHover={{ scale: 1.015 }}>
           <img
-            src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=900&q=80"
-            alt="Action environnementale"
+            src={heroNettoyageImage}
+            alt="Scouts participant au nettoyage d’un cours d’eau"
             loading="lazy"
           />
         </motion.div>
@@ -673,8 +684,8 @@ function LandingPage({ onNavigate = () => {} }) {
         <div className="wc-review-content">
           <motion.div className="wc-review-img-box" whileHover={{ y: -8 }}>
             <img
-              src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=700&q=80"
-              alt="Jeune ambassadrice"
+              src={categoryAmbassadeurImage}
+              alt="Jeune ambassadrice de l’eau"
               loading="lazy"
             />
 
