@@ -1,5 +1,3 @@
-
-
 .learning-page {
   --learning-primary: var(--wc-primary, #126bff);
   --learning-primary-dark: var(--wc-primary-dark, #0758df);
@@ -11,12 +9,13 @@
   --learning-soft-2: var(--wc-soft-2, #dceaff);
   --learning-white: var(--wc-white, #ffffff);
 
-  width: 100%;
+  width: calc(100% + 12px);
   min-width: 0;
+  margin-inline: -6px;
 
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 
   font-family: "Nunito", Arial, sans-serif;
 }
@@ -150,7 +149,7 @@
     repeat(3, minmax(0, 1fr));
 
   align-items: stretch;
-  gap: 10px;
+  margin: 0;
 }
 
 /* =========================================================
@@ -164,6 +163,7 @@
 
   width: 100%;
   min-width: 0;
+  min-height: 505px;
   height: 100%;
 
   display: flex;
@@ -528,13 +528,13 @@
 
 .learning-page .learning-page__body {
   flex: 1;
-  min-height: 0;
+  min-height: 218px;
 
-  padding: 14px 15px;
+  padding: 14px 14px 16px;
 
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .learning-page .learning-page__module-title {
@@ -549,7 +549,7 @@
 }
 
 .learning-page .learning-page__summary {
-  min-height: 31px;
+  min-height: 0;
   margin: 0;
 
   display: -webkit-box;
@@ -1175,6 +1175,120 @@
   }
 }
 
+
+/* =========================================================
+   PAGINATION DES MODULES
+   ========================================================= */
+
+.learning-page .learning-page__pagination {
+  width: 100%;
+  margin: 0;
+  padding: 2px 0 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+
+  border: 0;
+}
+
+.learning-page .learning-page__pagination-control,
+.learning-page .learning-page__pagination-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(--learning-border);
+  background: #ffffff;
+  color: var(--learning-dark);
+
+  box-shadow: 0 5px 12px rgba(16, 71, 128, 0.06);
+
+  font-family: inherit;
+  font-weight: 1000;
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.learning-page .learning-page__pagination-control {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+
+  gap: 5px;
+  border-radius: 8px;
+
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.learning-page .learning-page__pagination-control:hover:not(:disabled),
+.learning-page .learning-page__pagination-number:hover:not(.is-active) {
+  transform: translateY(-1px);
+  border-color: #b7d2ff;
+  color: var(--learning-primary);
+}
+
+.learning-page .learning-page__pagination-control:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.learning-page .learning-page__pagination-pages {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: min(100%, 520px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+
+  margin: 0;
+  padding: 0 2px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.learning-page
+  .learning-page__pagination-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.learning-page .learning-page__pagination-number {
+  flex: 0 0 29px;
+  width: 29px;
+  min-width: 29px;
+  height: 29px;
+  min-height: 29px;
+  padding: 0;
+
+  border-radius: 8px;
+  font-size: 8.5px;
+}
+
+.learning-page .learning-page__pagination-number.is-active {
+  border-color: var(--learning-primary);
+  background: var(--learning-primary);
+  color: #ffffff;
+
+  box-shadow: 0 6px 14px rgba(18, 107, 255, 0.22);
+}
+
 /* =========================================================
    PAGINATION MOBILE
    ========================================================= */
@@ -1228,7 +1342,7 @@
 @media (max-width: 1250px) {
   .learning-page
     > .learning-page__grid {
-    gap: 12px;
+    gap: 10px;
   }
 
   .learning-page
@@ -1254,9 +1368,9 @@
   .learning-page
     > .learning-page__grid {
     grid-template-columns:
-      repeat(3, minmax(0, 1fr));
+      repeat(2, minmax(0, 1fr));
 
-    gap: 10px;
+    gap: 12px;
   }
 
   .learning-page
@@ -1378,7 +1492,7 @@
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
 
-    gap: 14px;
+    gap: 10px;
   }
 
   .learning-page
@@ -1391,9 +1505,11 @@
    MOBILE
    ========================================================= */
 
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   .learning-page {
-    gap: 15px;
+    width: 100%;
+    margin-inline: 0;
+    gap: 3px;
 
     overflow: hidden;
   }
@@ -1402,7 +1518,7 @@
     > .learning-page__header {
     align-items: flex-start;
     flex-direction: column;
-    gap: 9px;
+    gap: 6px;
   }
 
   .learning-page
@@ -1457,12 +1573,13 @@
     display: flex;
     align-items: stretch;
 
-    gap: 14px;
+    gap: 5px;
 
+    margin: 0;
     overflow-x: auto;
     overflow-y: hidden;
 
-    padding: 2px 1px 5px;
+    padding: 1px 1px 2px;
 
     scroll-snap-type: x mandatory;
     scroll-padding-inline: 1px;
@@ -1470,6 +1587,7 @@
     scrollbar-width: none;
 
     overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
 
     -webkit-overflow-scrolling: touch;
   }
@@ -1486,6 +1604,7 @@
 
     width: 100%;
     max-width: none;
+    min-height: 0;
 
     scroll-snap-align: start;
     scroll-snap-stop: always;
@@ -1548,9 +1667,10 @@
 
   .learning-page
     .learning-page__body {
-    padding: 12px 12px 13px;
+    min-height: 0;
+    padding: 10px 11px 11px;
 
-    gap: 7px;
+    gap: 5px;
   }
 
   .learning-page
@@ -1560,10 +1680,10 @@
 
   .learning-page
     .learning-page__summary {
-    min-height: 30px;
+    min-height: 0;
 
-    font-size: 9.6px;
-    line-height: 1.4;
+    font-size: 9.4px;
+    line-height: 1.34;
   }
 
   .learning-page
@@ -1647,8 +1767,56 @@
 
   .learning-page
     .learning-page__dots {
-    display: flex;
+    display: none;
   }
+
+
+  .learning-page .learning-page__pagination {
+    margin: 0;
+    padding: 1px 0 0;
+    gap: 3px;
+  }
+
+  .learning-page .learning-page__pagination-control {
+    flex: 0 0 26px;
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    min-height: 26px;
+    padding: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .learning-page
+    .learning-page__pagination-control-label {
+    display: none;
+  }
+
+  .learning-page .learning-page__pagination-pages {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: calc(100vw - 86px);
+    gap: 3px;
+    padding: 0 1px;
+  }
+
+  .learning-page .learning-page__pagination-number {
+    flex: 0 0 25px;
+    width: 25px;
+    min-width: 25px;
+    height: 25px;
+    min-height: 25px;
+    padding: 0;
+
+    border-radius: 7px;
+    font-size: 8px;
+  }
+
 }
 
 /* =========================================================
@@ -1702,11 +1870,11 @@
   .learning-page *,
   .learning-page *::before,
   .learning-page *::after {
-    scroll-behavior: auto !important;
+    scroll-behavior: auto;
 
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
 
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.01ms;
   }
 }

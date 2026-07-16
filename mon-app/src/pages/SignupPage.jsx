@@ -62,16 +62,14 @@ function SignupPage({ onNavigate }) {
 
   const sections = {
     FR: {
-      mavo: 'Bleu (Mavo)',
-      maitso: 'Vert (Maitso)',
-      mena: 'Rouge (Mena)',
-      cheftaine: 'Cheftaine',
+      mavo: 'Jaune',
+      maitso: 'Vert',
+      mena: 'Rouge',
     },
     MLG: {
-      mavo: 'Bleu (Mavo)',
-      maitso: 'Vert (Maitso)',
-      mena: 'Rouge (Mena)',
-      cheftaine: 'Cheftaine',
+      mavo: 'Mavo',
+      maitso: 'Maitso',
+      mena: 'Mena',
     },
   }
 
@@ -238,8 +236,19 @@ function SignupPage({ onNavigate }) {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-      // Position options differ between scout / non-scout, so reset it on type change
-      ...(name === 'scoutType' ? { position: '' } : {}),
+
+      // Les choix dépendent du type d'utilisateur.
+      // On réinitialise les champs scouts quand le type change.
+      ...(name === 'scoutType'
+        ? {
+            position: '',
+            section: '',
+            sampana: '',
+            fivondronana: '',
+            faritra: '',
+            diosezy: '',
+          }
+        : {}),
     }))
 
     clearMessage()
@@ -285,7 +294,13 @@ function SignupPage({ onNavigate }) {
   }
 
   const validateStepTwo = () => {
-    if (!formData.scoutType || !formData.section || !formData.position) {
+    if (!formData.scoutType || !formData.position) {
+      showMessage('error', t.requiredError)
+      return false
+    }
+
+    // La section est obligatoire uniquement pour un scout.
+    if (!isNonScout && !formData.section) {
       showMessage('error', t.requiredError)
       return false
     }
@@ -401,7 +416,7 @@ function SignupPage({ onNavigate }) {
       password_confirm: formData.confirmationMotDePasse,
 
       scout_type: formData.scoutType,
-      section: formData.section,
+      section: isNonScout ? '' : formData.section,
       sampana: isNonScout ? '' : formData.sampana || '',
       position: formData.position,
 
@@ -781,25 +796,27 @@ function SignupPage({ onNavigate }) {
                       </select>
                     </div>
 
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>{t.sectionLabel}</label>
-                        <select
-                          name="section"
-                          value={formData.section}
-                          onChange={handleChange}
-                          required
-                          disabled={isLoading}
-                        >
-                          <option value="">{t.selectOption}</option>
+                    <div className={isNonScout ? '' : 'form-row'}>
+                      {!isNonScout && (
+                        <div className="form-group">
+                          <label>{t.sectionLabel}</label>
+                          <select
+                            name="section"
+                            value={formData.section}
+                            onChange={handleChange}
+                            required={!isNonScout}
+                            disabled={isLoading}
+                          >
+                            <option value="">{t.selectOption}</option>
 
-                          {Object.entries(sections[language]).map(([key, val]) => (
-                            <option key={key} value={key}>
-                              {val}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                            {Object.entries(sections[language]).map(([key, val]) => (
+                              <option key={key} value={key}>
+                                {val}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       <div className="form-group">
                         <label>{t.positionLabel}</label>

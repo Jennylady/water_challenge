@@ -66,6 +66,8 @@
   color: var(--lp-dark);
   cursor: pointer;
   transition: var(--lp-transition);
+  border: none;
+  background-color: transparent;
 }
 
 .login-logo:hover {

@@ -1,39 +1,189 @@
 /* =========================================================
    PROFILE SECTION
-   Styles propres au composant ProfileSection.jsx
+   ========================================================= */
+
+.profile-section {
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =========================================================
+   CARTES
    ========================================================= */
 
 .profile-section .dash-card {
-  padding: 18px 20px;
+  width: 100%;
+  min-width: 0;
+
+  padding: 20px;
+
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 16px 38px rgba(16, 71, 128, 0.08),
+    0 3px 10px rgba(16, 71, 128, 0.04);
 }
 
-.profile-hero {
-  display: grid;
-  grid-template-columns: 108px minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
+/* =========================================================
+   EN-TÊTE DE CARTE
+   ========================================================= */
 
-  padding: 16px 20px;
+.profile-card-header {
+  width: 100%;
+
+  margin-bottom: 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.profile-card-title {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-card-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid var(--wc-border, #dbeafe);
+  border-radius: 50%;
+
+  background: var(--wc-soft, #eef6ff);
+  color: var(--wc-primary, #126bff);
+
+  font-size: 16px;
+}
+
+.profile-card-header h2,
+.profile-card-header h3,
+.profile-section .dash-card > h2,
+.profile-section .dash-card > h3 {
+  margin: 0;
+
+  color: var(--wc-dark, #101828);
+
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 1000;
+}
+
+/* =========================================================
+   BOUTON MODIFIER
+   ========================================================= */
+
+.profile-edit-button,
+.profile-section .dash-light-btn {
+  flex: 0 0 auto;
+
+  min-height: 36px;
+  padding: 8px 12px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  border: 1px solid var(--wc-border, #dbeafe);
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: var(--wc-dark, #101828);
+
+  box-shadow:
+    0 5px 14px rgba(16, 71, 128, 0.06);
+
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.profile-edit-button:hover,
+.profile-section .dash-light-btn:hover {
+  transform: translateY(-1px);
+
+  border-color: #b8d3ff;
+
+  background: var(--wc-soft, #eef6ff);
+  color: var(--wc-primary, #126bff);
+}
+
+/* =========================================================
+   PROFIL PRINCIPAL
+   ========================================================= */
+
+.profile-hero {
+  width: 100%;
+
+  padding: 18px 20px;
+
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
 }
 
 .profile-photo {
-  width: 100px;
-  height: 100px;
+  width: 96px;
+  height: 96px;
+
   display: grid;
   place-items: center;
-  border-radius: 50% 50% 18px 18px;
+
+  overflow: hidden;
+
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+
   background:
     linear-gradient(
       135deg,
-      var(--wc-primary),
-      var(--wc-primary-dark)
+      var(--wc-primary, #126bff),
+      var(--wc-primary-dark, #0758df)
     );
-  color: var(--wc-white);
-  font-size: 32px;
-  font-weight: 1000;
+
+  color: #ffffff;
+
   box-shadow:
-    0 16px 28px
-    rgba(18, 107, 255, 0.22);
+    0 15px 30px rgba(18, 107, 255, 0.22);
+
+  font-size: 30px;
+  font-weight: 1000;
+}
+
+.profile-photo img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center;
 }
 
 .profile-hero > div:last-child {
@@ -41,21 +191,39 @@
 }
 
 .profile-hero h2 {
-  margin: 4px 0 3px;
+  margin: 0 0 4px;
+
+  color: var(--wc-dark, #101828);
+
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 1000;
 }
 
 .profile-hero > div:last-child > p {
-  margin: 0 0 8px;
-  font-size: 12.5px;
+  margin: 0;
+
+  color: var(--wc-muted, #7a8495);
+
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 800;
 }
 
+/* =========================================================
+   GRILLE DES INFORMATIONS
+   ========================================================= */
+
 .profile-info-grid {
+  width: 100%;
+
+  margin-top: 14px;
+
   display: grid;
   grid-template-columns:
     repeat(3, minmax(0, 1fr));
-  gap: 8px;
 
-  margin-top: 12px;
+  gap: 10px;
 }
 
 .profile-info-grid--stats {
@@ -63,209 +231,436 @@
     repeat(3, minmax(0, 1fr));
 }
 
-.profile-info-item {
+/*
+ * Compatible avec :
+ * <div className="profile-info-item">
+ *   <span>Nom complet</span>
+ *   <strong>...</strong>
+ * </div>
+ *
+ * Mais aussi avec des div ou p directement
+ * à l'intérieur de profile-info-grid.
+ */
+
+.profile-info-item,
+.profile-info-grid > div,
+.profile-info-grid > p {
   min-width: 0;
-  padding: 9px 11px;
+  margin: 0;
+  padding: 11px 12px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+
+  border: 1px solid var(--wc-border, #dbeafe);
+  border-radius: 11px;
+
   background: #f8fbff;
-  border: 1px solid var(--wc-border);
-  border-radius: 10px;
 }
 
-.profile-info-item span {
+.profile-info-item span,
+.profile-info-grid > div > span,
+.profile-info-grid > p > span,
+.profile-info-item label,
+.profile-info-grid > div > label {
   display: block;
-  margin-bottom: 3px;
-  color: var(--wc-muted);
-  font-size: 10px;
+
+  margin: 0;
+
+  color: var(--wc-muted, #7a8495);
+
+  font-size: 9.5px;
+  line-height: 1.2;
   font-weight: 900;
+
+  text-transform: none;
 }
 
-.profile-info-item strong {
+.profile-info-item strong,
+.profile-info-grid > div > strong,
+.profile-info-grid > p > strong,
+.profile-info-item b,
+.profile-info-grid > div > b {
   display: block;
-  color: var(--wc-dark);
-  font-size: 12.5px;
+
+  width: 100%;
+  min-width: 0;
+
+  color: var(--wc-dark, #101828);
+
+  font-size: 12px;
+  line-height: 1.4;
   font-weight: 1000;
-  line-height: 1.25;
+
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-info-item--readonly {
-  opacity: 0.75;
+  opacity: 0.76;
 }
 
+/* =========================================================
+   COMPATIBILITÉ AVEC UNE LISTE SIMPLE
+   ========================================================= */
+
 /*
- * Barre utilisée directement dans ProfileSection.jsx.
+ * À utiliser si ton JSX contient :
+ *
+ * <div className="profile-details">
+ *   <p><span>Nom complet</span><strong>...</strong></p>
+ * </div>
  */
+
+.profile-details {
+  width: 100%;
+
+  margin-top: 14px;
+
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 10px;
+}
+
+.profile-details > p,
+.profile-details > div {
+  min-width: 0;
+  margin: 0;
+  padding: 11px 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  border: 1px solid var(--wc-border, #dbeafe);
+  border-radius: 11px;
+
+  background: #f8fbff;
+}
+
+.profile-details > p > span,
+.profile-details > div > span {
+  color: var(--wc-muted, #7a8495);
+
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+.profile-details > p > strong,
+.profile-details > div > strong {
+  color: var(--wc-dark, #101828);
+
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 1000;
+
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   BARRE DE PROGRESSION
+   ========================================================= */
+
 .dash-progress {
   width: 100%;
-  height: 9px;
+  height: 8px;
+
   margin: 8px 0 12px;
+
   overflow: hidden;
+
   border-radius: 999px;
-  background: var(--wc-soft-2);
+
+  background: var(--wc-soft-2, #dceaff);
 }
 
 .dash-progress > div {
   height: 100%;
+
   border-radius: inherit;
+
   background:
     linear-gradient(
       90deg,
-      var(--wc-primary),
-      var(--wc-secondary)
+      var(--wc-primary, #126bff),
+      var(--wc-secondary, #f4b928)
     );
+
   transition: width 0.35s ease;
 }
 
 /* =========================================================
-   MESSAGES DE FORMULAIRE
+   MESSAGES
    ========================================================= */
 
 .profile-form-note {
-  margin: 8px 0 0;
-  padding: 8px 11px;
+  width: 100%;
+
+  margin: 10px 0 0;
+  padding: 9px 11px;
 
   border-radius: 10px;
 
-  font-size: 11.5px;
-  font-weight: 800;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 850;
 }
 
 .profile-form-note--success {
   border: 1px solid #abefc6;
+
   background: #ecfdf3;
   color: #027a48;
 }
 
 .profile-form-note--error {
   border: 1px solid #fecdd6;
+
   background: #fff8f9;
   color: #c01048;
 }
 
 /* =========================================================
-   FORMULAIRE D'ÉDITION
+   FORMULAIRE DE MODIFICATION
    ========================================================= */
 
 .profile-edit-form {
-  margin-top: 10px;
+  width: 100%;
+
+  margin-top: 12px;
 }
 
 .profile-edit-grid {
+  width: 100%;
+
+  margin-bottom: 14px;
+
   display: grid;
   grid-template-columns:
     repeat(3, minmax(0, 1fr));
-  gap: 8px;
 
-  margin-bottom: 12px;
+  gap: 10px;
 }
 
 .profile-edit-field {
   min-width: 0;
-  padding: 8px 10px;
+  padding: 9px 11px;
 
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 
-  border: 1px solid var(--wc-border);
+  border: 1px solid var(--wc-border, #dbeafe);
   border-radius: 10px;
 
   background: #ffffff;
 }
 
-.profile-edit-field span {
-  color: var(--wc-muted);
-  font-size: 10px;
+.profile-edit-field span,
+.profile-edit-field label {
+  color: var(--wc-muted, #7a8495);
+
+  font-size: 9.5px;
+  line-height: 1.2;
   font-weight: 900;
 }
 
-.profile-edit-field input {
+.profile-edit-field input,
+.profile-edit-field select,
+.profile-edit-field textarea {
   width: 100%;
+  min-width: 0;
 
-  padding: 5px 0;
+  padding: 7px 0;
 
-  border: none;
-  border-bottom: 1px solid var(--wc-border);
-
-  color: var(--wc-dark);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 800;
+  border: 0;
+  border-bottom: 1px solid var(--wc-border, #dbeafe);
+  outline: 0;
 
   background: transparent;
+  color: var(--wc-dark, #101828);
+
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 800;
 }
 
-.profile-edit-field input:focus {
-  outline: none;
-  border-bottom-color: var(--wc-primary);
+.profile-edit-field textarea {
+  min-height: 85px;
+
+  resize: vertical;
+}
+
+.profile-edit-field input:focus,
+.profile-edit-field select:focus,
+.profile-edit-field textarea:focus {
+  border-bottom-color: var(--wc-primary, #126bff);
 }
 
 .profile-field-error {
+  margin: 0;
+
   color: #c01048;
-  font-size: 9.5px;
-  font-weight: 800;
-  line-height: 1.3;
+
+  font-size: 9px;
+  line-height: 1.35;
+  font-weight: 850;
 }
 
 /* =========================================================
-   RESPONSIVE PROFILE
+   BOUTONS DU FORMULAIRE
    ========================================================= */
 
-@media (max-width: 760px) {
-  .profile-hero {
-    grid-template-columns:
-      minmax(0, 1fr);
-    justify-items: center;
-    text-align: center;
-  }
+.profile-form-actions {
+  width: 100%;
 
-  .profile-photo {
-    width: 84px;
-    height: 84px;
-    font-size: 27px;
-  }
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
-  .profile-hero .challenge-meta {
-    justify-content: center;
-  }
+/* =========================================================
+   TABLETTE
+   ========================================================= */
 
+@media (max-width: 900px) {
   .profile-info-grid,
   .profile-info-grid--stats,
-  .profile-edit-grid {
+  .profile-edit-grid,
+  .profile-details {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 420px) {
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 620px) {
+  .profile-section {
+    gap: 12px;
+  }
+
   .profile-section .dash-card {
-    padding: 14px 15px;
+    padding: 15px;
+    border-radius: 15px;
+  }
+
+  .profile-card-header {
+    margin-bottom: 13px;
+
+    align-items: flex-start;
+  }
+
+  .profile-card-title {
+    align-items: flex-start;
+  }
+
+  .profile-card-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+
+    font-size: 14px;
+  }
+
+  .profile-card-header h2,
+  .profile-card-header h3,
+  .profile-section .dash-card > h2,
+  .profile-section .dash-card > h3 {
+    font-size: 16px;
+  }
+
+  .profile-edit-button,
+  .profile-section .dash-light-btn {
+    min-height: 32px;
+    padding: 7px 9px;
+
+    font-size: 9px;
   }
 
   .profile-hero {
-    padding: 13px 15px;
+    padding: 15px;
+
+    grid-template-columns:
+      minmax(0, 1fr);
+
+    justify-items: center;
+
+    gap: 12px;
+
+    text-align: center;
   }
 
   .profile-photo {
-    width: 72px;
-    height: 72px;
-    font-size: 23px;
-    border-radius: 50% 50% 15px 15px;
+    width: 78px;
+    height: 78px;
+
+    font-size: 24px;
   }
 
-  .profile-info-item {
-    padding: 8px 9px;
-  }
-
-  .profile-info-item strong {
-    font-size: 11.5px;
+  .profile-hero h2 {
+    font-size: 18px;
   }
 
   .profile-info-grid,
   .profile-info-grid--stats,
-  .profile-edit-grid {
+  .profile-edit-grid,
+  .profile-details {
     grid-template-columns:
       minmax(0, 1fr);
+
+    gap: 7px;
+  }
+
+  .profile-info-item,
+  .profile-info-grid > div,
+  .profile-info-grid > p,
+  .profile-details > p,
+  .profile-details > div {
+    padding: 9px 10px;
+  }
+
+  .profile-info-item strong,
+  .profile-info-grid > div > strong,
+  .profile-info-grid > p > strong,
+  .profile-details > p > strong,
+  .profile-details > div > strong {
+    font-size: 11.5px;
+  }
+
+  .profile-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .profile-form-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   TRÈS PETITS MOBILES
+   ========================================================= */
+
+@media (max-width: 380px) {
+  .profile-section .dash-card {
+    padding: 13px;
+  }
+
+  .profile-card-header {
+    gap: 8px;
+  }
+
+  .profile-edit-button,
+  .profile-section .dash-light-btn {
+    padding-inline: 7px;
   }
 }

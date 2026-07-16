@@ -1443,28 +1443,7 @@ function Dashboard({
             </button>
           </div>
 
-          {/* <div className="dash-sidebar-card">
-            <div className="dash-sidebar-avatar">
-              {userInitials}
-            </div>
-
-            <h3>
-              {
-                currentUser.prenom
-              }{' '}
-              {currentUser.nom}
-            </h3>
-
-            <p>
-              {t.waterAmbassador}
-            </p>
-
-            <small>
-              {
-                currentUser.niveau
-              }
-            </small>
-          </div> */}
+         
 
           <nav
             className="dash-menu"

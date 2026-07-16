@@ -190,12 +190,6 @@ function DashboardHome({ t, user, setActiveSection }) {
         ))}
       </div>
 
-      <div className="dashboard-impact-row">
-        <span>🌍 {statistics?.personnes_sensibilisees ?? 0} personnes sensibilisées</span>
-        <span>✅ {statistics?.defis_termines ?? 0} challenges terminés</span>
-        <span>▶ {statistics?.defis_en_cours ?? ongoingChallenges.length} en cours</span>
-      </div>
-
       <div className="dashboard-challenges-block">
         <div className="dash-card-top dashboard-challenges-title-row">
           <div>

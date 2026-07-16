@@ -31,7 +31,7 @@ export function getDashboardData(language = 'FR') {
       ongoingTitle: 'Challenges en cours',
     },
     learning: {
-      kicker: 'Formation',
+      
       title: 'Learning Modules',
       subtitle: 'Chaque module suit un parcours simple : petite explication, lecture, quiz, challenge, puis soumission de preuve.',
       read: 'Read',

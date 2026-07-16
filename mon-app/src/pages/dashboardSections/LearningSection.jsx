@@ -30,6 +30,22 @@ const MODULE_VIEWS = {
   QUIZ: 'quiz',
 }
 
+const getModulesPerPage = () => {
+  if (typeof window === 'undefined') {
+    return 3
+  }
+
+  if (window.innerWidth <= 760) {
+    return 1
+  }
+
+  if (window.innerWidth <= 1180) {
+    return 2
+  }
+
+  return 3
+}
+
 const STORAGE_KEYS = {
   BOOKMARKS:
     'waterChallengeBookmarkedModules',
@@ -238,7 +254,6 @@ const readStoredBookmarks = () => {
    ========================================================= */
 
 function LearningSection({
-  t,
   setActiveSection,
 }) {
   const [
@@ -279,9 +294,16 @@ function LearningSection({
   ] = useState(null)
 
   const [
-    activeSlide,
-    setActiveSlide,
-  ] = useState(0)
+    currentPage,
+    setCurrentPage,
+  ] = useState(1)
+
+  const [
+    modulesPerPage,
+    setModulesPerPage,
+  ] = useState(
+    getModulesPerPage
+  )
 
   const [
     navigationVersion,
@@ -297,21 +319,27 @@ function LearningSection({
 
   const gridRef = useRef(null)
 
+  const mobileSwipeRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startScrollLeft: 0,
+    moved: false,
+  })
+
+  const suppressGridClickRef =
+    useRef(false)
+
   const restoredModuleRef =
     useRef('')
 
   const labels = useMemo(
     () => ({
-      kicker:
-        t?.learning?.kicker ||
-        'Formation',
+      kicker: 'Formation',
 
       title:
-        t?.learning?.title ||
         'Modules de formation',
 
       subtitle:
-        t?.learning?.subtitle ||
         'Découvrez les modules, consultez les leçons, passez les quiz et réalisez les challenges.',
 
       module: 'Module',
@@ -324,47 +352,33 @@ function LearningSection({
       completed: 'Terminé',
       locked: 'Verrouillé',
 
-      read:
-        t?.learning?.read ||
-        'Lecture',
-
+      read: 'Lecture',
       quiz: 'Quiz',
-
-      challenge:
-        t?.learning?.challenge ||
-        'Challenge',
+      challenge: 'Challenge',
 
       lessons: 'leçons',
       questions: 'questions',
       challenges: 'challenges',
 
-      start:
-        t?.learning?.start ||
-        'Commencer',
-
+      start: 'Commencer',
       continue: 'Continuer',
       restart: 'Revoir',
 
       details: 'Voir les détails',
-
       opening: 'Ouverture...',
 
       empty:
-        t?.learning?.empty ||
         'Aucun module de formation disponible.',
 
       error:
-        t?.learning?.error ||
         'Impossible de charger les modules.',
 
-      retry:
-        t?.learning?.retry ||
-        'Réessayer',
+      retry: 'Réessayer',
 
       quizUnavailable:
         'Le quiz de ce module n’est pas encore disponible.',
     }),
-    [t]
+    []
   )
 
   /* =======================================================
@@ -507,6 +521,438 @@ function LearningSection({
         }
       )
     }, [modules])
+
+
+  const totalPages = useMemo(
+    () =>
+      Math.max(
+        1,
+        Math.ceil(
+          sortedModules.length /
+            modulesPerPage
+        )
+      ),
+    [
+      modulesPerPage,
+      sortedModules.length,
+    ]
+  )
+
+  const paginatedModules =
+    useMemo(() => {
+      /*
+       * Sur mobile, tous les modules restent présents
+       * dans la ligne afin de permettre le glissement
+       * naturel vers le précédent ou le suivant.
+       */
+      if (modulesPerPage === 1) {
+        return sortedModules
+      }
+
+      const startIndex =
+        (currentPage - 1) *
+        modulesPerPage
+
+      return sortedModules.slice(
+        startIndex,
+        startIndex +
+          modulesPerPage
+      )
+    }, [
+      currentPage,
+      modulesPerPage,
+      sortedModules,
+    ])
+
+  useEffect(() => {
+    const handleResize = () => {
+      const nextModulesPerPage =
+        getModulesPerPage()
+
+      setModulesPerPage(
+        (currentValue) =>
+          currentValue ===
+          nextModulesPerPage
+            ? currentValue
+            : nextModulesPerPage
+      )
+    }
+
+    window.addEventListener(
+      'resize',
+      handleResize
+    )
+
+    return () => {
+      window.removeEventListener(
+        'resize',
+        handleResize
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    setCurrentPage(
+      (currentValue) =>
+        Math.min(
+          Math.max(1, currentValue),
+          totalPages
+        )
+    )
+  }, [totalPages])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [modulesPerPage])
+
+  const handlePageChange =
+    useCallback(
+      (nextPage) => {
+        if (
+          nextPage < 1 ||
+          nextPage > totalPages ||
+          nextPage === currentPage
+        ) {
+          return
+        }
+
+        setCurrentPage(nextPage)
+
+        if (
+          modulesPerPage === 1 &&
+          gridRef.current
+        ) {
+          const targetCard =
+            gridRef.current.children[
+              nextPage - 1
+            ]
+
+          if (targetCard) {
+            gridRef.current.scrollTo({
+              left: targetCard.offsetLeft,
+              behavior: 'smooth',
+            })
+          }
+
+          return
+        }
+
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        })
+      },
+      [
+        currentPage,
+        modulesPerPage,
+        totalPages,
+      ]
+    )
+
+  const handleMobileGridScroll =
+    useCallback(() => {
+      if (
+        modulesPerPage !== 1 ||
+        !gridRef.current
+      ) {
+        return
+      }
+
+      const gridNode =
+        gridRef.current
+
+      const cards = Array.from(
+        gridNode.children
+      )
+
+      if (cards.length === 0) {
+        return
+      }
+
+      let closestIndex = 0
+      let closestDistance =
+        Number.POSITIVE_INFINITY
+
+      cards.forEach(
+        (card, cardIndex) => {
+          const distance =
+            Math.abs(
+              card.offsetLeft -
+                gridNode.scrollLeft
+            )
+
+          if (
+            distance <
+            closestDistance
+          ) {
+            closestDistance =
+              distance
+            closestIndex =
+              cardIndex
+          }
+        }
+      )
+
+      const visiblePage =
+        closestIndex + 1
+
+      setCurrentPage(
+        (currentValue) =>
+          currentValue === visiblePage
+            ? currentValue
+            : visiblePage
+      )
+    }, [modulesPerPage])
+
+
+  const handleMobilePointerDown =
+    useCallback(
+      (event) => {
+        if (
+          modulesPerPage !== 1 ||
+          !gridRef.current
+        ) {
+          return
+        }
+
+        if (
+          event.pointerType === 'mouse' &&
+          event.button !== 0
+        ) {
+          return
+        }
+
+        const gridNode =
+          gridRef.current
+
+        mobileSwipeRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startScrollLeft:
+            gridNode.scrollLeft,
+          moved: false,
+        }
+
+        suppressGridClickRef.current =
+          false
+
+        try {
+          gridNode.setPointerCapture(
+            event.pointerId
+          )
+        } catch {
+          // Certains navigateurs mobiles
+          // gèrent déjà la capture du doigt.
+        }
+      },
+      [modulesPerPage]
+    )
+
+  const handleMobilePointerMove =
+    useCallback(
+      (event) => {
+        const swipeState =
+          mobileSwipeRef.current
+
+        if (
+          modulesPerPage !== 1 ||
+          !gridRef.current ||
+          swipeState.pointerId !==
+            event.pointerId
+        ) {
+          return
+        }
+
+        const deltaX =
+          event.clientX -
+          swipeState.startX
+
+        if (Math.abs(deltaX) > 5) {
+          swipeState.moved = true
+          suppressGridClickRef.current =
+            true
+        }
+
+        gridRef.current.scrollLeft =
+          swipeState.startScrollLeft -
+          deltaX
+
+        if (Math.abs(deltaX) > 8) {
+          event.preventDefault()
+        }
+      },
+      [modulesPerPage]
+    )
+
+  const finishMobileSwipe =
+    useCallback(
+      (event, wasCancelled = false) => {
+        const swipeState =
+          mobileSwipeRef.current
+
+        if (
+          modulesPerPage !== 1 ||
+          !gridRef.current ||
+          swipeState.pointerId !==
+            event.pointerId
+        ) {
+          return
+        }
+
+        const gridNode =
+          gridRef.current
+
+        const deltaX =
+          event.clientX -
+          swipeState.startX
+
+        const threshold = Math.max(
+          42,
+          gridNode.clientWidth * 0.12
+        )
+
+        let nextPage = currentPage
+
+        if (!wasCancelled) {
+          if (deltaX > threshold) {
+            nextPage = Math.max(
+              1,
+              currentPage - 1
+            )
+          } else if (
+            deltaX < -threshold
+          ) {
+            nextPage = Math.min(
+              totalPages,
+              currentPage + 1
+            )
+          } else {
+            const cards = Array.from(
+              gridNode.children
+            )
+
+            let closestIndex =
+              currentPage - 1
+            let closestDistance =
+              Number.POSITIVE_INFINITY
+
+            cards.forEach(
+              (card, cardIndex) => {
+                const distance = Math.abs(
+                  card.offsetLeft -
+                    gridNode.scrollLeft
+                )
+
+                if (
+                  distance <
+                  closestDistance
+                ) {
+                  closestDistance =
+                    distance
+                  closestIndex =
+                    cardIndex
+                }
+              }
+            )
+
+            nextPage =
+              closestIndex + 1
+          }
+        }
+
+        try {
+          gridNode.releasePointerCapture(
+            event.pointerId
+          )
+        } catch {
+          // La capture peut déjà être libérée.
+        }
+
+        mobileSwipeRef.current = {
+          pointerId: null,
+          startX: 0,
+          startScrollLeft: 0,
+          moved: false,
+        }
+
+        if (nextPage !== currentPage) {
+          handlePageChange(nextPage)
+        } else {
+          const currentCard =
+            gridNode.children[
+              currentPage - 1
+            ]
+
+          if (currentCard) {
+            gridNode.scrollTo({
+              left: currentCard.offsetLeft,
+              behavior: 'smooth',
+            })
+          }
+        }
+
+        window.setTimeout(() => {
+          suppressGridClickRef.current =
+            false
+        }, 120)
+      },
+      [
+        currentPage,
+        handlePageChange,
+        modulesPerPage,
+        totalPages,
+      ]
+    )
+
+  const handleMobilePointerUp =
+    useCallback(
+      (event) => {
+        finishMobileSwipe(event, false)
+      },
+      [finishMobileSwipe]
+    )
+
+  const handleMobilePointerCancel =
+    useCallback(
+      (event) => {
+        finishMobileSwipe(event, true)
+      },
+      [finishMobileSwipe]
+    )
+
+  const handleMobileGridClickCapture =
+    useCallback((event) => {
+      if (
+        suppressGridClickRef.current
+      ) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }, [])
+
+  useEffect(() => {
+    if (
+      modulesPerPage !== 1 ||
+      !gridRef.current
+    ) {
+      return
+    }
+
+    const targetCard =
+      gridRef.current.children[
+        currentPage - 1
+      ]
+
+    if (targetCard) {
+      gridRef.current.scrollTo({
+        left: targetCard.offsetLeft,
+        behavior: 'auto',
+      })
+    }
+  }, [
+    currentPage,
+    modulesPerPage,
+  ])
 
   /* =======================================================
      STATUT D’UN MODULE
@@ -922,8 +1368,7 @@ function LearningSection({
 
         try {
           /*
-           * La liste fournit le slug,
-           * mais le backend détail attend l’UUID.
+           * La liste et l’API de détail utilisent le slug.
            */
           const moduleDetail =
             await fetchModuleDetail(
@@ -1315,95 +1760,6 @@ function LearningSection({
     }, [])
 
   /* =======================================================
-     CARROUSEL MOBILE
-     ======================================================= */
-
-  const handleGridScroll =
-    useCallback(() => {
-      const gridNode =
-        gridRef.current
-
-      if (!gridNode) {
-        return
-      }
-
-      const cards =
-        Array.from(
-          gridNode.children
-        )
-
-      if (cards.length === 0) {
-        return
-      }
-
-      const currentScroll =
-        gridNode.scrollLeft
-
-      let closestIndex = 0
-      let closestDistance =
-        Number.POSITIVE_INFINITY
-
-      cards.forEach(
-        (card, cardIndex) => {
-          const distance =
-            Math.abs(
-              card.offsetLeft -
-              currentScroll
-            )
-
-          if (
-            distance <
-            closestDistance
-          ) {
-            closestDistance =
-              distance
-
-            closestIndex =
-              cardIndex
-          }
-        }
-      )
-
-      setActiveSlide(
-        closestIndex
-      )
-    }, [])
-
-  const scrollToSlide =
-    useCallback((index) => {
-      const gridNode =
-        gridRef.current
-
-      const selectedCard =
-        gridNode?.children?.[index]
-
-      if (
-        !gridNode ||
-        !selectedCard
-      ) {
-        return
-      }
-
-      gridNode.scrollTo({
-        left:
-          selectedCard.offsetLeft,
-
-        behavior: 'smooth',
-      })
-
-      setActiveSlide(index)
-    }, [])
-
-  useEffect(() => {
-    setActiveSlide(0)
-
-    if (gridRef.current) {
-      gridRef.current.scrollLeft =
-        0
-    }
-  }, [sortedModules.length])
-
-  /* =======================================================
      CHARGEMENT
      ======================================================= */
 
@@ -1431,8 +1787,14 @@ function LearningSection({
         </div>
 
         <div className="learning-page__grid">
-          {[1, 2, 3].map(
-            (item) => (
+          {Array.from(
+            {
+              length:
+                modulesPerPage,
+            },
+            (_, index) =>
+              index + 1
+          ).map((item) => (
               <article
                 className="learning-page__card learning-page__card--skeleton"
                 key={item}
@@ -1686,13 +2048,79 @@ function LearningSection({
       ) : (
         <>
           <div
-            className="learning-page__grid"
             ref={gridRef}
+            className="learning-page__grid"
             onScroll={
-              handleGridScroll
+              handleMobileGridScroll
+            }
+            onPointerDown={
+              handleMobilePointerDown
+            }
+            onPointerMove={
+              handleMobilePointerMove
+            }
+            onPointerUp={
+              handleMobilePointerUp
+            }
+            onPointerCancel={
+              handleMobilePointerCancel
+            }
+            onClickCapture={
+              handleMobileGridClickCapture
+            }
+            onDragStart={(event) =>
+              event.preventDefault()
+            }
+            style={
+              modulesPerPage === 1
+                ? {
+                    width: '100%',
+                    display: 'flex',
+                    alignItems:
+                      'stretch',
+                    gap: '14px',
+                    marginTop: '4px',
+                    marginBottom:
+                      '4px',
+                    padding:
+                      '2px 1px 5px',
+                    overflowX:
+                      'auto',
+                    overflowY:
+                      'hidden',
+                    scrollSnapType:
+                      'x mandatory',
+                    scrollPaddingInline:
+                      '1px',
+                    scrollbarWidth:
+                      'none',
+                    overscrollBehaviorX:
+                      'contain',
+                    touchAction: 'pan-y',
+                    cursor: 'grab',
+                    userSelect: 'none',
+                    WebkitOverflowScrolling:
+                      'touch',
+                  }
+                : {
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns:
+                      `repeat(${modulesPerPage}, minmax(0, 1fr))`,
+                    alignItems:
+                      'stretch',
+                    gap: '24px',
+                    marginTop: '8px',
+                    marginBottom:
+                      '12px',
+                    overflow:
+                      'visible',
+                    scrollSnapType:
+                      'none',
+                  }
             }
           >
-            {sortedModules.map(
+            {paginatedModules.map(
               (
                 module,
                 moduleIndex
@@ -1713,10 +2141,19 @@ function LearningSection({
                     module
                   )
 
+                const globalModuleIndex =
+                  modulesPerPage === 1
+                    ? moduleIndex
+                    : (
+                        currentPage - 1
+                      ) *
+                        modulesPerPage +
+                      moduleIndex
+
                 const moduleOrder =
                   getModuleDisplayOrder(
                     module,
-                    moduleIndex
+                    globalModuleIndex
                   )
 
                 const accessible =
@@ -1724,14 +2161,17 @@ function LearningSection({
                     module
                   )
 
+                const moduleSlug =
+                  getModuleSlug(module)
+
                 const readActionKey =
-                  `${module.id}:${MODULE_TARGETS.READ}`
+                  `${moduleSlug}:${MODULE_TARGETS.READ}`
 
                 const quizActionKey =
-                  `${module.id}:${MODULE_TARGETS.QUIZ}`
+                  `${moduleSlug}:${MODULE_TARGETS.QUIZ}`
 
                 const challengeActionKey =
-                  `${module.id}:${MODULE_TARGETS.CHALLENGE}`
+                  `${moduleSlug}:${MODULE_TARGETS.CHALLENGE}`
 
                 const isOpeningRead =
                   openingAction ===
@@ -1779,7 +2219,10 @@ function LearningSection({
 
                 return (
                   <article
-                    key={module.id}
+                    key={
+                      module.id ||
+                      getModuleSlug(module)
+                    }
                     className={[
                       'learning-page__card',
 
@@ -2090,37 +2533,97 @@ function LearningSection({
             )}
           </div>
 
-          <div
-            className="learning-page__dots"
-            role="tablist"
-            aria-label="Navigation entre les modules"
-          >
-            {sortedModules.map(
-              (module, index) => (
-                <button
-                  key={module.id}
-                  type="button"
-                  role="tab"
-                  className={[
-                    'learning-page__dot',
+          {totalPages > 1 && (
+            <nav
+              className="learning-page__pagination"
+              aria-label="Pagination des modules"
+            >
+              <button
+                type="button"
+                className="learning-page__pagination-control"
+                disabled={
+                  currentPage === 1
+                }
+                onClick={() =>
+                  handlePageChange(
+                    currentPage - 1
+                  )
+                }
+                aria-label="Afficher la page précédente"
+              >
+                <span aria-hidden="true">
+                  ←
+                </span>
 
-                    index === activeSlide
-                      ? 'is-active'
-                      : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-selected={
-                    index === activeSlide
-                  }
-                  aria-label={`Aller au module ${index + 1}`}
-                  onClick={() =>
-                    scrollToSlide(index)
-                  }
-                />
-              )
-            )}
-          </div>
+                <span className="learning-page__pagination-control-label">
+                  Précédent
+                </span>
+              </button>
+
+              <div className="learning-page__pagination-pages">
+                {Array.from(
+                  {
+                    length:
+                      totalPages,
+                  },
+                  (_, index) =>
+                    index + 1
+                ).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    className={[
+                      'learning-page__pagination-number',
+
+                      page ===
+                      currentPage
+                        ? 'is-active'
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    aria-current={
+                      page ===
+                      currentPage
+                        ? 'page'
+                        : undefined
+                    }
+                    aria-label={`Afficher la page ${page}`}
+                    onClick={() =>
+                      handlePageChange(
+                        page
+                      )
+                    }
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="learning-page__pagination-control"
+                disabled={
+                  currentPage ===
+                  totalPages
+                }
+                onClick={() =>
+                  handlePageChange(
+                    currentPage + 1
+                  )
+                }
+                aria-label="Afficher la page suivante"
+              >
+                <span className="learning-page__pagination-control-label">
+                  Suivant
+                </span>
+
+                <span aria-hidden="true">
+                  →
+                </span>
+              </button>
+            </nav>
+          )}
         </>
       )}
     </section>
