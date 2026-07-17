@@ -571,14 +571,21 @@
       rgba(16, 71, 128, 0.12);
 }
 
+/*
+ * Hero du détail challenge : le badge de statut (positionné en
+ * absolute, en haut à droite) et le titre doivent démarrer à la
+ * même hauteur visuelle. On aligne donc le contenu en flex-start
+ * (au lieu de flex-end) et on équilibre le padding vertical.
+ */
 .challenge-details__hero {
   position: relative;
 
-  min-height: 190px;
-  padding: 28px;
+  padding: 22px 28px 26px;
 
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
 
   overflow: hidden;
 
@@ -625,6 +632,7 @@
   z-index: 2;
 
   max-width: 820px;
+  padding-right: 90px;
 }
 
 .challenge-details__hero-content > p {
@@ -641,10 +649,10 @@
   margin: 0;
 
   font-size:
-    clamp(27px, 4vw, 43px);
+    clamp(22px, 3.5vw, 35px);
 
   line-height: 1.05;
-  font-weight: 1000;
+  font-weight: 800;
   letter-spacing: -1.1px;
 }
 
@@ -1162,8 +1170,7 @@
   }
 
   .challenge-details__hero {
-    min-height: 175px;
-    padding: 21px 17px;
+    padding: 20px 17px 24px;
   }
 
   .challenge-details__hero::before {

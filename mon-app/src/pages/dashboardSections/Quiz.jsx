@@ -1,46 +1,30 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
-import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
 
 import { getApiErrorMessage } from '../../api/api'
 import { formationApi } from '../../api/services'
 
 import './Quiz.css'
 
-const fetchQuizData = async (moduleSlug) =>
-  formationApi.getQuiz(moduleSlug)
-
-const saveReponse = async (
-  tentativeId,
-  questionId,
-  payload
-) =>
-  formationApi.answerQuestion(
-    tentativeId,
-    questionId,
-    payload
-  )
-
-const submitTentative = async (tentativeId) =>
-  formationApi.submitAttempt(tentativeId)
-
-// ---------------------------------------------------------------------------
-// Helpers de normalisation des données (compatibles avec les champs FR
-// renvoyés par l'API : texte, choix, bonnes_reponses, est_correcte, etc.)
-// ---------------------------------------------------------------------------
+/* =========================================================
+   UTILITAIRES
+   ========================================================= */
 
 const getModuleSlug = (module) =>
   String(module?.slug || '').trim()
 
-const getQuestionId = (
-  question,
-  questionIndex
-) =>
+const normalizeText = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+const getQuestionId = (question, questionIndex) =>
   String(
     question?.id ??
       question?.uuid ??
@@ -48,27 +32,18 @@ const getQuestionId = (
       questionIndex
   )
 
-const getQuestionText = (
-  question,
-  questionIndex
-) =>
+const getQuestionText = (question, questionIndex) =>
   question?.texte ||
   question?.question ||
   question?.libelle ||
   question?.titre ||
   `Question ${questionIndex + 1}`
 
-const getQuestionExplanation = (question) =>
-  question?.explication ||
-  question?.explanation ||
-  question?.correction ||
-  ''
-
 const getQuestionOptions = (question) => {
   const options =
+    question?.choix ??
     question?.options ??
     question?.reponses ??
-    question?.choix ??
     question?.answers ??
     []
 
@@ -76,68 +51,45 @@ const getQuestionOptions = (question) => {
     return options
   }
 
-  if (
-    options &&
-    typeof options === 'object'
-  ) {
-    return Object.entries(options).map(
-      ([key, value]) => {
-        if (
-          value &&
-          typeof value === 'object'
-        ) {
-          return {
-            id: value.id ?? key,
-            ...value,
-          }
-        }
-
+  if (options && typeof options === 'object') {
+    return Object.entries(options).map(([key, value]) => {
+      if (value && typeof value === 'object') {
         return {
-          id: key,
-          texte: value,
+          id: value.id ?? key,
+          ...value,
         }
       }
-    )
+
+      return {
+        id: key,
+        texte: String(value),
+      }
+    })
   }
 
   return []
 }
 
-const getOptionId = (
-  option,
-  optionIndex
-) => {
-  if (
-    option === null ||
-    option === undefined
-  ) {
+const getOptionId = (option, optionIndex) => {
+  if (option === null || option === undefined) {
     return String(optionIndex)
   }
 
-  if (
-    typeof option === 'string' ||
-    typeof option === 'number'
-  ) {
+  if (typeof option === 'string' || typeof option === 'number') {
     return String(optionIndex)
   }
 
   return String(
-    option.id ??
-      option.uuid ??
-      option.value ??
-      option.code ??
+    option?.id ??
+      option?.uuid ??
+      option?.value ??
+      option?.code ??
       optionIndex
   )
 }
 
-const getOptionText = (
-  option,
-  optionIndex
-) => {
-  if (
-    typeof option === 'string' ||
-    typeof option === 'number'
-  ) {
+const getOptionText = (option, optionIndex) => {
+  if (typeof option === 'string' || typeof option === 'number') {
     return String(option)
   }
 
@@ -153,599 +105,284 @@ const getOptionText = (
 }
 
 const getQuestionType = (question) =>
-  String(
-    question?.type_question ||
-      question?.type ||
+  normalizeText(
+    question?.type ||
+      question?.type_question ||
       question?.question_type ||
+      question?.format ||
       ''
-  ).toLowerCase()
+  )
 
-const isShortAnswerQuestion = (question) => {
-  const type = getQuestionType(question)
+const isTextQuestion = (question) => {
+  const questionType = getQuestionType(question)
 
-  return Boolean(
-    type === 'reponse_courte' ||
-      question?.reponse_libre ||
-      question?.texte_libre
+  return (
+    questionType.includes('texte') ||
+    questionType.includes('text') ||
+    questionType.includes('ouverte') ||
+    questionType.includes('open') ||
+    questionType.includes('libre') ||
+    getQuestionOptions(question).length === 0
   )
 }
 
 const isMultipleQuestion = (question) => {
-  const type = getQuestionType(question)
+  const questionType = getQuestionType(question)
 
   return Boolean(
     question?.multiple ||
       question?.plusieurs_reponses ||
       question?.choix_multiple ||
-      type === 'multiple' ||
-      type === 'checkbox' ||
-      type === 'choix_multiple'
+      questionType === 'choix_multiple' ||
+      questionType === 'multiple' ||
+      questionType === 'multiple_choice' ||
+      questionType === 'checkbox'
   )
 }
 
-// Best-effort : si l'API renvoie déjà une réponse enregistrée dans l'objet
-// question (nom de champ non spécifié dans la doc), on la récupère pour
-// pré-remplir l'état local après un rechargement de page.
-const getExistingAnswerState = (question) => {
-  const savedChoiceIds =
-    question?.choix_ids ??
-    question?.reponse_choix_ids ??
-    question?.mes_choix ??
-    question?.reponse_enregistree?.choix_ids ??
-    question?.reponse_utilisateur?.choix_ids
-
-  const savedText =
-    question?.reponse_texte ??
-    question?.ma_reponse ??
-    question?.reponse_enregistree?.reponse_texte ??
-    question?.reponse_utilisateur?.reponse_texte
-
-  const rawResult =
-    question?.reponse_utilisateur ??
-    question?.ma_reponse_correction
-
-  const result =
-    rawResult &&
-    typeof rawResult?.est_correcte === 'boolean'
-      ? {
-          estCorrecte: rawResult.est_correcte,
-          correction: rawResult.correction,
-          explication: rawResult.explication,
-        }
-      : null
-
-  if (
-    !savedChoiceIds &&
-    !savedText &&
-    !result
-  ) {
-    return null
+const normalizeChoiceIds = (value) => {
+  if (!value) {
+    return []
   }
+
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean)
+  }
+
+  return [String(value)]
+}
+
+const createEmptyAnswer = () => ({
+  choix_ids: [],
+  reponse_texte: '',
+})
+
+const extractExistingAnswer = (question) => {
+  const receivedAnswer =
+    question?.reponse_utilisateur ??
+    question?.reponse ??
+    question?.derniere_reponse ??
+    question?.user_answer ??
+    {}
+
+  const choiceIds =
+    receivedAnswer?.choix_ids ??
+    receivedAnswer?.choix_selectionnes ??
+    question?.choix_ids ??
+    question?.choix_selectionnes ??
+    []
+
+  const textAnswer =
+    receivedAnswer?.reponse_texte ??
+    receivedAnswer?.texte ??
+    question?.reponse_texte ??
+    ''
 
   return {
-    choixIds: Array.isArray(savedChoiceIds)
-      ? savedChoiceIds.map(String)
-      : undefined,
-    reponseTexte: savedText
-      ? String(savedText)
-      : undefined,
-    result,
+    choix_ids: normalizeChoiceIds(choiceIds),
+    reponse_texte: String(textAnswer || ''),
   }
 }
 
-const isAnswerFilled = (value) =>
-  Array.isArray(value)
-    ? value.length > 0
-    : Boolean(
-        value && String(value).trim()
-      )
+const getAnswerSignature = (answer) => {
+  const choiceIds = [...(answer?.choix_ids || [])]
+    .map(String)
+    .sort()
 
-const toFiniteNumber = (value, fallback = 0) => {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : fallback
+  return JSON.stringify({
+    choix_ids: choiceIds,
+    reponse_texte: String(answer?.reponse_texte || '').trim(),
+  })
 }
 
-// Le champ "correction" renvoyé par l'API a une forme libre (schéma = {}).
-// On essaie plusieurs formes courantes pour en tirer un texte lisible.
-const formatCorrectionAnswer = (
-  correction,
-  options
-) => {
-  if (!correction) {
-    return ''
-  }
-
-  if (typeof correction === 'string') {
-    return correction
-  }
-
-  const correctIds =
-    correction?.choix_ids ??
-    correction?.reponse_correcte ??
-    correction?.bonnes_reponses ??
-    correction?.correct_answer
-
-  const idsList = Array.isArray(
-    correctIds
-  )
-    ? correctIds
-    : correctIds !== undefined &&
-        correctIds !== null
-      ? [correctIds]
-      : []
-
-  if (idsList.length > 0) {
-    return idsList
-      .map((id) => {
-        const optionIndex =
-          options.findIndex(
-            (option, index) =>
-              getOptionId(
-                option,
-                index
-              ) === String(id)
-          )
-
-        return optionIndex >= 0
-          ? getOptionText(
-              options[optionIndex],
-              optionIndex
-            )
-          : String(id)
-      })
-      .join(', ')
+const isQuestionAnswered = (question, answer) => {
+  if (isTextQuestion(question)) {
+    return Boolean(String(answer?.reponse_texte || '').trim())
   }
 
   return (
-    correction?.texte ||
-    correction?.reponse_texte ||
-    ''
+    Array.isArray(answer?.choix_ids) &&
+    answer.choix_ids.length > 0
   )
 }
+
+/*
+ * Extrait les ids des bonnes réponses depuis le feedback retourné par le
+ * backend (answerQuestion / submitAttempt). Plusieurs noms de champs sont
+ * tolérés car le format exact dépend de l’API.
+ */
+const getCorrectChoiceIds = (feedback) => {
+  const correctIds =
+    feedback?.choix_corrects_ids ??
+    feedback?.choix_correct_ids ??
+    feedback?.bonnes_reponses_ids ??
+    feedback?.reponse_correcte_ids ??
+    feedback?.correct_choix_ids ??
+    feedback?.reponse_attendue_ids ??
+    []
+
+  return normalizeChoiceIds(correctIds)
+}
+
+/*
+ * Idem pour une question à réponse libre (texte).
+ */
+const getCorrectAnswerText = (feedback) =>
+  String(
+    feedback?.reponse_correcte_texte ||
+      feedback?.reponse_correcte ||
+      feedback?.reponse_attendue ||
+      feedback?.bonne_reponse ||
+      feedback?.correction ||
+      ''
+  ).trim()
+
+/* =========================================================
+   COMPOSANT
+   ========================================================= */
 
 function Quiz({
   module,
   onBack,
   onOpenLesson,
   onOpenChallenge,
-  onSubmit,
+  onQuizSubmitted,
 }) {
   const [quiz, setQuiz] = useState(null)
-  const [isLoadingQuiz, setIsLoadingQuiz] =
-    useState(true)
-  const [loadError, setLoadError] =
-    useState('')
-  const [reloadToken, setReloadToken] =
-    useState(0)
+  const [questions, setQuestions] = useState([])
+  const [tentativeId, setTentativeId] = useState('')
 
-  const [activeQuestionIndex, setActiveQuestionIndex] =
-    useState(0)
+  const [answers, setAnswers] = useState({})
+  const [savedAnswerSignatures, setSavedAnswerSignatures] = useState({})
+  const [questionFeedback, setQuestionFeedback] = useState({})
 
-  // valeur = tableau d'ids (QCM/QCU) ou string (réponse courte)
-  const [answers, setAnswers] =
-    useState({})
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0)
 
-  const [shortAnswerDrafts, setShortAnswerDrafts] =
-    useState({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
 
-  // questionId -> { estCorrecte, correction, explication }
-  const [questionResults, setQuestionResults] =
-    useState({})
-
-  const [savingQuestionIds, setSavingQuestionIds] =
-    useState({})
-
-  const [saveError, setSaveError] =
-    useState('')
-
-  const [submission, setSubmission] = useState(null)
-  const [showResultModal, setShowResultModal] = useState(false)
+  const [savingQuestionId, setSavingQuestionId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [attempts, setAttempts] = useState([])
-  const [ranking, setRanking] = useState([])
-  const [sideDataError, setSideDataError] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [submittedTentative, setSubmittedTentative] = useState(null)
 
-  const hasNotifiedSubmitRef = useRef(false)
+  const moduleSlug = getModuleSlug(module)
 
-  const questions = quiz?.questions || []
+  /* =======================================================
+     CHARGEMENT DU QUIZ ET DE LA TENTATIVE
+     ======================================================= */
 
-  const moduleSlug =
-    getModuleSlug(module)
-
-  // ---------------------------------------------------------------------
-  // Chargement du quiz depuis l'API
-  // ---------------------------------------------------------------------
-  useEffect(() => {
-    let isCancelled = false
-
-    setAnswers({})
-    setShortAnswerDrafts({})
-    setQuestionResults({})
-    setSavingQuestionIds({})
-    setSaveError('')
-    setSubmission(null)
-    setShowResultModal(false)
-    setActiveQuestionIndex(0)
-    hasNotifiedSubmitRef.current = false
-
+  const loadQuiz = useCallback(async () => {
     if (!moduleSlug) {
-      setQuiz(null)
-      setIsLoadingQuiz(false)
-      setLoadError('')
-
-      return undefined
-    }
-
-    setIsLoadingQuiz(true)
-    setLoadError('')
-
-    fetchQuizData(moduleSlug)
-      .then((fetchedQuiz) => {
-        if (isCancelled) return
-
-        setQuiz(fetchedQuiz || null)
-
-        const initialAnswers = {}
-        const initialDrafts = {}
-        const initialResults = {}
-
-        ;(fetchedQuiz?.questions || []).forEach(
-          (question, questionIndex) => {
-            const questionId = getQuestionId(
-              question,
-              questionIndex
-            )
-
-            const existing =
-              getExistingAnswerState(question)
-
-            if (!existing) return
-
-            if (existing.choixIds?.length) {
-              initialAnswers[questionId] =
-                existing.choixIds
-            } else if (
-              existing.reponseTexte
-            ) {
-              initialAnswers[questionId] =
-                existing.reponseTexte
-              initialDrafts[questionId] =
-                existing.reponseTexte
-            }
-
-            if (existing.result) {
-              initialResults[questionId] =
-                existing.result
-            }
-          }
-        )
-
-        setAnswers(initialAnswers)
-        setShortAnswerDrafts(initialDrafts)
-        setQuestionResults(initialResults)
-      })
-      .catch((error) => {
-        if (isCancelled) return
-
-        console.error(
-          'Erreur lors du chargement du quiz :',
-          error
-        )
-
-        setLoadError(
-          error?.response?.data?.erreur ||
-            error?.response?.data?.detail ||
-            error?.message ||
-            'Impossible de charger le quiz.'
-        )
-      })
-      .finally(() => {
-        if (!isCancelled) {
-          setIsLoadingQuiz(false)
-        }
-      })
-
-    return () => {
-      isCancelled = true
-    }
-  }, [moduleSlug, reloadToken])
-
-  useEffect(() => {
-    let cancelled = false
-
-    if (!moduleSlug) {
-      setAttempts([])
-      setRanking([])
-      return undefined
-    }
-
-    setSideDataError('')
-
-    Promise.allSettled([
-      formationApi.listAttempts(moduleSlug),
-      formationApi.getRanking(moduleSlug),
-    ]).then(([attemptsResult, rankingResult]) => {
-      if (cancelled) {
-        return
-      }
-
-      if (attemptsResult.status === 'fulfilled') {
-        setAttempts(
-          Array.isArray(attemptsResult.value)
-            ? attemptsResult.value
-            : []
-        )
-      }
-
-      if (rankingResult.status === 'fulfilled') {
-        setRanking(
-          Array.isArray(rankingResult.value)
-            ? rankingResult.value
-            : []
-        )
-      }
-
-      if (
-        attemptsResult.status === 'rejected' &&
-        rankingResult.status === 'rejected'
-      ) {
-        setSideDataError(
-          'Historique et classement indisponibles pour le moment.'
-        )
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [moduleSlug, reloadToken])
-
-  const currentQuestion =
-    questions[activeQuestionIndex]
-
-  const currentQuestionId =
-    currentQuestion
-      ? getQuestionId(
-          currentQuestion,
-          activeQuestionIndex
-        )
-      : ''
-
-  const currentOptions =
-    currentQuestion
-      ? getQuestionOptions(currentQuestion)
-      : []
-
-  const isCurrentShortAnswer =
-    currentQuestion
-      ? isShortAnswerQuestion(
-          currentQuestion
-        )
-      : false
-
-  const currentAnswers = Array.isArray(
-    answers[currentQuestionId]
-  )
-    ? answers[currentQuestionId]
-    : []
-
-  const currentResult =
-    questionResults[currentQuestionId]
-
-  const isSavingCurrent = Boolean(
-    savingQuestionIds[currentQuestionId]
-  )
-
-  const answeredQuestionsCount =
-    useMemo(() => {
-      return questions.filter(
-        (question, questionIndex) => {
-          const questionId = getQuestionId(
-            question,
-            questionIndex
-          )
-
-          return isAnswerFilled(
-            answers[questionId]
-          )
-        }
-      ).length
-    }, [answers, questions])
-
-  const progress =
-    questions.length > 0
-      ? Math.round(
-          (answeredQuestionsCount /
-            questions.length) *
-            100
-        )
-      : 0
-
-  const allAnswersCompleted =
-    questions.length > 0 &&
-    answeredQuestionsCount === questions.length
-
-  const isFinished = Boolean(
-    submission ||
-      (quiz?.statut_tentative &&
-        quiz.statut_tentative !== 'en_cours')
-  )
-
-  const scoreSummary = useMemo(() => {
-    if (submission) {
-      const submittedResponses = Array.isArray(submission.reponses)
-        ? submission.reponses
-        : []
-
-      const correctFromResponses = submittedResponses.filter(
-        (response) => response?.est_correcte === true
-      ).length
-      const incorrectFromResponses = submittedResponses.filter(
-        (response) => response?.est_correcte === false
-      ).length
-
-      const total = toFiniteNumber(
-        submission.nombre_questions,
-        questions.length
-      )
-      const answered = toFiniteNumber(
-        submission.nombre_reponses,
-        submittedResponses.length
-      )
-      const correct = toFiniteNumber(
-        submission.nombre_bonnes_reponses,
-        correctFromResponses
-      )
-      const incorrect = toFiniteNumber(
-        submission.nombre_mauvaises_reponses,
-        incorrectFromResponses || Math.max(answered - correct, 0)
-      )
-
-      return {
-        correct,
-        incorrect,
-        answered,
-        total,
-        percentage: toFiniteNumber(submission.score, 0),
-        successPercentage: toFiniteNumber(
-          submission.score_de_reussite,
-          toFiniteNumber(quiz?.score_de_reussite, 0)
-        ),
-        points: toFiniteNumber(submission.points_obtenus, 0),
-        pointsTotal: toFiniteNumber(submission.points_total, 0),
-      }
-    }
-
-    const correctedEntries = Object.values(
-      questionResults
-    ).filter(
-      (result) =>
-        typeof result?.estCorrecte === 'boolean'
-    )
-
-    if (correctedEntries.length === 0) {
-      return null
-    }
-
-    const correct = correctedEntries.filter(
-      (result) => result.estCorrecte
-    ).length
-    const incorrect = correctedEntries.length - correct
-
-    return {
-      correct,
-      incorrect,
-      answered: correctedEntries.length,
-      total: questions.length || correctedEntries.length,
-      percentage: Math.round(
-        (correct / correctedEntries.length) * 100
-      ),
-      successPercentage: toFiniteNumber(quiz?.score_de_reussite, 0),
-    }
-  }, [questionResults, questions.length, quiz?.score_de_reussite, submission])
-
-
-  const isSuccess = submission
-    ? Boolean(submission.est_reussi)
-    : null
-
-  useEffect(() => {
-    if (
-      submission &&
-      !hasNotifiedSubmitRef.current &&
-      typeof onSubmit === 'function'
-    ) {
-      hasNotifiedSubmitRef.current = true
-
-      onSubmit({
-        moduleSlug,
-        quizId: quiz?.id,
-        tentativeId: submission.id || quiz?.tentative_id,
-        totalQuestions: questions.length,
-        score: scoreSummary,
-        tentative: submission,
-      })
-    }
-  }, [
-    moduleSlug,
-    onSubmit,
-    questions.length,
-    quiz?.id,
-    quiz?.tentative_id,
-    scoreSummary,
-    submission,
-  ])
-
-
-  const saveAnswerToServer = async (
-    question,
-    questionIndex,
-    payload
-  ) => {
-    const questionId = getQuestionId(
-      question,
-      questionIndex
-    )
-
-    if (!quiz?.tentative_id) {
-      setSaveError(
-        "Aucune tentative de quiz active."
-      )
-
+      setLoadError('Impossible d’identifier le module.')
+      setIsLoading(false)
       return
     }
 
-    setSavingQuestionIds((current) => ({
-      ...current,
-      [questionId]: true,
-    }))
-
-    setSaveError('')
+    setIsLoading(true)
+    setLoadError('')
+    setActionError('')
+    setIsSubmitted(false)
+    setSubmittedTentative(null)
+    setQuestionFeedback({})
+    setActiveQuestionIndex(0)
 
     try {
-      const reponse = await saveReponse(
-        quiz.tentative_id,
-        questionId,
-        payload
-      )
+      const receivedQuiz = await formationApi.getQuiz(moduleSlug)
 
-      if (
-        reponse &&
-        typeof reponse.est_correcte ===
-          'boolean'
-      ) {
-        setQuestionResults((current) => ({
-          ...current,
-          [questionId]: {
-            estCorrecte:
-              reponse.est_correcte,
-            correction:
-              reponse.correction,
-            explication:
-              reponse.explication,
-          },
-        }))
+      if (!receivedQuiz?.id) {
+        throw new Error('Le serveur ne retourne pas un quiz valide.')
       }
-    } catch (error) {
-      console.error(
-        "Erreur pendant l'enregistrement de la réponse :",
-        error
-      )
 
-      setSaveError(
-        error?.response?.data?.erreur ||
-          error?.response?.data?.detail ||
-          error?.response?.data?.message ||
-          error?.message ||
-          "Impossible d'enregistrer votre réponse."
+      const receivedTentativeId = String(receivedQuiz?.tentative_id || '')
+
+      if (!receivedTentativeId) {
+        throw new Error(
+          'Aucune tentative active n’a été créée pour ce quiz.'
+        )
+      }
+
+      const receivedQuestions = Array.isArray(receivedQuiz.questions)
+        ? receivedQuiz.questions
+        : []
+
+      const nextAnswers = {}
+      const nextSavedSignatures = {}
+
+      receivedQuestions.forEach((question, questionIndex) => {
+        const questionId = getQuestionId(question, questionIndex)
+        const existingAnswer = extractExistingAnswer(question)
+
+        nextAnswers[questionId] = existingAnswer
+
+        if (isQuestionAnswered(question, existingAnswer)) {
+          nextSavedSignatures[questionId] =
+            getAnswerSignature(existingAnswer)
+        }
+      })
+
+      setQuiz(receivedQuiz)
+      setTentativeId(receivedTentativeId)
+      setQuestions(receivedQuestions)
+      setAnswers(nextAnswers)
+      setSavedAnswerSignatures(nextSavedSignatures)
+    } catch (requestError) {
+      console.error('Erreur de chargement du quiz :', requestError)
+
+      setQuiz(null)
+      setQuestions([])
+      setTentativeId('')
+      setAnswers({})
+      setSavedAnswerSignatures({})
+
+      setLoadError(
+        getApiErrorMessage(
+          requestError,
+          'Impossible de charger le quiz.'
+        )
       )
     } finally {
-      setSavingQuestionIds((current) => ({
-        ...current,
-        [questionId]: false,
-      }))
+      setIsLoading(false)
     }
-  }
+  }, [moduleSlug])
+
+  useEffect(() => {
+    loadQuiz()
+  }, [loadQuiz])
+
+  /* =======================================================
+     QUESTION ACTIVE
+     ======================================================= */
+
+  const currentQuestion = questions[activeQuestionIndex]
+
+  const currentQuestionId = currentQuestion
+    ? getQuestionId(currentQuestion, activeQuestionIndex)
+    : ''
+
+  const currentOptions = currentQuestion
+    ? getQuestionOptions(currentQuestion)
+    : []
+
+  const currentAnswer =
+    answers[currentQuestionId] || createEmptyAnswer()
+
+  const answeredQuestionsCount = useMemo(() => {
+    return questions.filter((question, questionIndex) => {
+      const questionId = getQuestionId(question, questionIndex)
+      return isQuestionAnswered(question, answers[questionId])
+    }).length
+  }, [answers, questions])
+
+  const progress =
+    questions.length > 0
+      ? Math.round((answeredQuestionsCount / questions.length) * 100)
+      : 0
+
+  /* =======================================================
+     MODIFICATION D’UNE RÉPONSE
+     ======================================================= */
 
   const handleSelectOption = (
     question,
@@ -753,165 +390,275 @@ function Quiz({
     option,
     optionIndex
   ) => {
-    if (isFinished) {
+    if (isSubmitted || isSubmitting) {
       return
     }
 
-    const questionId = getQuestionId(
-      question,
-      questionIndex
-    )
+    const questionId = getQuestionId(question, questionIndex)
+    const optionId = getOptionId(option, optionIndex)
+    const multiple = isMultipleQuestion(question)
 
-    const optionId = getOptionId(
-      option,
-      optionIndex
-    )
+    setAnswers((currentAnswersState) => {
+      const previousAnswer =
+        currentAnswersState[questionId] || createEmptyAnswer()
 
-    const multiple =
-      isMultipleQuestion(question)
+      const previousChoiceIds = previousAnswer.choix_ids || []
 
-    const previous =
-      answers[questionId]
+      if (!multiple) {
+        return {
+          ...currentAnswersState,
+          [questionId]: {
+            choix_ids: [optionId],
+            reponse_texte: '',
+          },
+        }
+      }
 
-    const previousList = Array.isArray(
-      previous
-    )
-      ? previous
-      : []
+      const alreadySelected = previousChoiceIds.includes(optionId)
 
-    const nextList = !multiple
-      ? [optionId]
-      : previousList.includes(optionId)
-        ? previousList.filter(
-            (id) => id !== optionId
+      const nextChoiceIds = alreadySelected
+        ? previousChoiceIds.filter((currentId) => currentId !== optionId)
+        : [...previousChoiceIds, optionId]
+
+      return {
+        ...currentAnswersState,
+        [questionId]: {
+          choix_ids: nextChoiceIds,
+          reponse_texte: '',
+        },
+      }
+    })
+
+    setActionError('')
+  }
+
+  const handleTextAnswerChange = (question, questionIndex, value) => {
+    if (isSubmitted || isSubmitting) {
+      return
+    }
+
+    const questionId = getQuestionId(question, questionIndex)
+
+    setAnswers((currentAnswersState) => ({
+      ...currentAnswersState,
+      [questionId]: {
+        choix_ids: [],
+        reponse_texte: value,
+      },
+    }))
+
+    setActionError('')
+  }
+
+  /* =======================================================
+     ENREGISTREMENT D’UNE RÉPONSE
+     ======================================================= */
+
+  const saveQuestionAnswer = useCallback(
+    async (question, questionIndex, options = {}) => {
+      const { force = false } = options
+
+      if (!question) {
+        return null
+      }
+
+      if (!tentativeId) {
+        throw new Error('Aucune tentative active n’est disponible.')
+      }
+
+      const questionId = getQuestionId(question, questionIndex)
+      const answer = answers[questionId] || createEmptyAnswer()
+
+      if (!isQuestionAnswered(question, answer)) {
+        throw new Error(
+          `Veuillez répondre à la question ${questionIndex + 1}.`
+        )
+      }
+
+      const currentSignature = getAnswerSignature(answer)
+      const savedSignature = savedAnswerSignatures[questionId]
+
+      if (!force && currentSignature === savedSignature) {
+        return questionFeedback[questionId] || null
+      }
+
+      setSavingQuestionId(questionId)
+
+      try {
+        const payload = {
+          choix_ids: isTextQuestion(question) ? [] : answer.choix_ids,
+          reponse_texte: isTextQuestion(question)
+            ? String(answer.reponse_texte || '').trim()
+            : '',
+        }
+
+        const savedResponse = await formationApi.answerQuestion(
+          tentativeId,
+          questionId,
+          payload
+        )
+
+        setSavedAnswerSignatures((currentSignatures) => ({
+          ...currentSignatures,
+          [questionId]: currentSignature,
+        }))
+
+        setQuestionFeedback((currentFeedback) => ({
+          ...currentFeedback,
+          [questionId]: savedResponse || {},
+        }))
+
+        return savedResponse
+      } catch (requestError) {
+        console.error(
+          `Erreur pendant l’enregistrement de la question ${questionId} :`,
+          requestError
+        )
+
+        throw new Error(
+          getApiErrorMessage(
+            requestError,
+            'Impossible d’enregistrer cette réponse.'
           )
-        : [...previousList, optionId]
+        )
+      } finally {
+        setSavingQuestionId('')
+      }
+    },
+    [answers, questionFeedback, savedAnswerSignatures, tentativeId]
+  )
 
-    setAnswers((current) => ({
-      ...current,
-      [questionId]: nextList,
-    }))
+  /* =======================================================
+     NAVIGATION ENTRE LES QUESTIONS
+     ======================================================= */
 
-    saveAnswerToServer(
-      question,
-      questionIndex,
-      { choix_ids: nextList }
+  const handlePreviousQuestion = () => {
+    setActionError('')
+
+    setActiveQuestionIndex((currentIndex) =>
+      Math.max(currentIndex - 1, 0)
     )
   }
 
-  const handleShortAnswerChange = (
-    question,
-    questionIndex,
-    value
-  ) => {
-    const questionId = getQuestionId(
-      question,
-      questionIndex
-    )
-
-    setShortAnswerDrafts((current) => ({
-      ...current,
-      [questionId]: value,
-    }))
-  }
-
-  const handleShortAnswerSubmit = (
-    question,
-    questionIndex
-  ) => {
-    const questionId = getQuestionId(
-      question,
-      questionIndex
-    )
-
-    const value = (
-      shortAnswerDrafts[questionId] ?? ''
-    ).trim()
-
-    if (!value) {
+  /*
+   * Vérifie la réponse à la question active : l’enregistre côté serveur
+   * et affiche immédiatement si elle est correcte ou non, SANS avancer
+   * à la question suivante et SANS soumettre la tentative.
+   */
+  const handleCheckAnswer = async () => {
+    if (!currentQuestion) {
       return
     }
 
-    setAnswers((current) => ({
-      ...current,
-      [questionId]: value,
-    }))
+    setActionError('')
 
-    saveAnswerToServer(
-      question,
-      questionIndex,
-      { reponse_texte: value }
-    )
+    try {
+      await saveQuestionAnswer(currentQuestion, activeQuestionIndex)
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
   }
 
-  const handleSubmitAttempt = async () => {
-    if (
-      !quiz?.tentative_id ||
-      !allAnswersCompleted ||
-      isSubmitting ||
-      Object.values(savingQuestionIds).some(Boolean)
-    ) {
+  /*
+   * Avance à la question suivante. Appelé seulement une fois que la
+   * réponse actuelle a déjà été vérifiée (voir handleCheckAnswer).
+   */
+  const handleGoNext = () => {
+    setActionError('')
+
+    setActiveQuestionIndex((currentIndex) =>
+      Math.min(currentIndex + 1, questions.length - 1)
+    )
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSelectQuestion = (questionIndex) => {
+    setActiveQuestionIndex(questionIndex)
+    setActionError('')
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /* =======================================================
+     SOUMISSION DE LA TENTATIVE
+     ======================================================= */
+
+  const handleSubmit = async () => {
+    if (answeredQuestionsCount !== questions.length) {
+      setActionError(
+        'Veuillez répondre à toutes les questions avant de terminer le quiz.'
+      )
+      return
+    }
+
+    if (!tentativeId) {
+      setActionError('Aucune tentative active n’est disponible.')
       return
     }
 
     setIsSubmitting(true)
-    setSaveError('')
+    setActionError('')
 
     try {
-      const tentative = await submitTentative(
-        quiz.tentative_id
-      )
+      /*
+       * Enregistre toutes les réponses qui ont été modifiées ou qui
+       * ne sont pas encore sauvegardées.
+       */
+      for (
+        let questionIndex = 0;
+        questionIndex < questions.length;
+        questionIndex += 1
+      ) {
+        await saveQuestionAnswer(questions[questionIndex], questionIndex)
+      }
 
-      const submittedResults = {}
+      /*
+       * Le backend vérifie que toutes les questions ont une réponse,
+       * recalcule le score et attribue les points.
+       */
+      const tentative = await formationApi.submitAttempt(tentativeId)
 
-      ;(Array.isArray(tentative?.reponses)
-        ? tentative.reponses
-        : []
-      ).forEach((response) => {
-        const responseQuestionId = String(
-          response?.question_id || ''
+      if (!tentative?.id) {
+        throw new Error(
+          'Le serveur ne retourne pas le résultat de la tentative.'
         )
+      }
 
-        if (!responseQuestionId) return
+      const submittedFeedback = {}
 
-        submittedResults[responseQuestionId] = {
-          estCorrecte:
-            response?.est_correcte === true,
-          correction: response?.correction,
-          explication: response?.explication,
-        }
-      })
+      if (Array.isArray(tentative.reponses)) {
+        tentative.reponses.forEach((savedResponse) => {
+          const questionId = String(savedResponse?.question_id || '')
 
-      setQuestionResults((current) => ({
-        ...current,
-        ...submittedResults,
-      }))
-      setSubmission(tentative)
-      setShowResultModal(true)
-      setQuiz((current) => ({
-        ...current,
-        statut_tentative: tentative?.statut || 'soumise',
-      }))
-      setAttempts((current) => [
-        tentative,
-        ...current.filter(
-          (item) => String(item?.id) !== String(tentative?.id)
-        ),
-      ])
-
-      window.dispatchEvent(
-        new CustomEvent('waterchallenge:data-updated', {
-          detail: {
-            source: 'quiz-submitted',
-            moduleSlug,
-            tentativeId: tentative?.id || quiz.tentative_id,
-          },
+          if (questionId) {
+            submittedFeedback[questionId] = savedResponse
+          }
         })
+      }
+
+      setQuestionFeedback((currentFeedback) => ({
+        ...currentFeedback,
+        ...submittedFeedback,
+      }))
+
+      setSubmittedTentative(tentative)
+      setIsSubmitted(true)
+
+      if (typeof onQuizSubmitted === 'function') {
+        await onQuizSubmitted(tentative)
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (requestError) {
+      console.error(
+        'Erreur pendant la soumission du quiz :',
+        requestError
       )
-    } catch (error) {
-      setSaveError(
+
+      setActionError(
         getApiErrorMessage(
-          error,
+          requestError,
           'Impossible de soumettre le quiz.'
         )
       )
@@ -920,201 +667,57 @@ function Quiz({
     }
   }
 
-  const handlePreviousQuestion = () => {
-    setActiveQuestionIndex(
-      (currentIndex) =>
-        Math.max(currentIndex - 1, 0)
-    )
+  /* =======================================================
+     NOUVELLE TENTATIVE
+     ======================================================= */
+
+  const handleRestart = async () => {
+    /*
+     * Après une soumission, le GET du quiz doit retourner ou créer
+     * la tentative active suivante selon la logique backend.
+     */
+    await loadQuiz()
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleNextQuestion = () => {
-    setActiveQuestionIndex(
-      (currentIndex) =>
-        Math.min(
-          currentIndex + 1,
-          questions.length - 1
-        )
-    )
+  /* =======================================================
+     URL
+     ======================================================= */
+
+  const buildModuleUrl = (view = 'quiz') => {
+    if (typeof window === 'undefined') {
+      return '#'
+    }
+
+    const nextUrl = new URL(window.location.href)
+
+    nextUrl.searchParams.set('section', 'learning')
+    nextUrl.searchParams.set('module', moduleSlug)
+    nextUrl.searchParams.set('view', view)
+    nextUrl.searchParams.delete('moduleId')
+
+    return nextUrl.pathname + nextUrl.search + nextUrl.hash
   }
 
-  const handleSelectQuestion = (index) => {
-    setActiveQuestionIndex(index)
-  }
-
-  const handleRestart = () => {
-    setShowResultModal(false)
-    setSubmission(null)
-    hasNotifiedSubmitRef.current = false
-    setReloadToken(
-      (currentToken) => currentToken + 1
-    )
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
-  }
-
-  const resultModal =
-    submission &&
-    scoreSummary &&
-    showResultModal &&
-    typeof document !== 'undefined'
-      ? createPortal(
-          <AnimatePresence>
-            <motion.div
-              className="quiz-result-modal__overlay"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowResultModal(false)}
-            >
-              <motion.section
-                className={[
-                  'quiz-result-modal',
-                  isSuccess
-                    ? 'is-success'
-                    : 'is-failure',
-                ].join(' ')}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="quiz-result-modal-title"
-                initial={{ opacity: 0, y: 28, scale: 0.94 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.96 }}
-                transition={{ duration: 0.28, ease: 'easeOut' }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  className="quiz-result-modal__close"
-                  aria-label="Fermer le résultat du quiz"
-                  onClick={() => setShowResultModal(false)}
-                >
-                  ×
-                </button>
-
-                <div className="quiz-result-modal__heading">
-                  <span
-                    className="quiz-result-modal__icon"
-                    aria-hidden="true"
-                  >
-                    {isSuccess ? '🎉' : '💪'}
-                  </span>
-
-                  <div>
-                    <p className="quiz-result-modal__eyebrow">
-                      Résultat de votre tentative
-                    </p>
-
-                    <h2 id="quiz-result-modal-title">
-                      {isSuccess
-                        ? 'Quiz réussi !'
-                        : 'Quiz non réussi'}
-                    </h2>
-
-                    <p>
-                      {submission?.message ||
-                        (isSuccess
-                          ? 'Bravo, vous pouvez maintenant passer aux défis de ce module.'
-                          : 'Le seuil de réussite n’est pas encore atteint. Consultez vos réponses avant de continuer.')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="quiz-result-modal__body">
-                  <div className="quiz-result-modal__score">
-                    <strong>{scoreSummary.percentage}%</strong>
-                    <span>Score obtenu</span>
-                  </div>
-
-                  <div className="quiz-result-modal__stats">
-                    <div>
-                      <span>Points</span>
-                      <strong>
-                        {scoreSummary.points}
-                        {' / '}
-                        {scoreSummary.pointsTotal}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Seuil de réussite</span>
-                      <strong>
-                        {scoreSummary.successPercentage}%
-                      </strong>
-                    </div>
-
-                    <div className="is-correct">
-                      <span>Bonnes réponses</span>
-                      <strong>{scoreSummary.correct}</strong>
-                    </div>
-
-                    <div className="is-incorrect">
-                      <span>Mauvaises réponses</span>
-                      <strong>{scoreSummary.incorrect}</strong>
-                    </div>
-
-                    <div className="is-wide">
-                      <span>Questions répondues</span>
-                      <strong>
-                        {scoreSummary.answered}
-                        {' / '}
-                        {scoreSummary.total}
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="quiz-result-modal__actions">
-                  <button
-                    type="button"
-                    className="is-secondary"
-                    onClick={() => setShowResultModal(false)}
-                  >
-                    Consulter mes réponses
-                  </button>
-
-                  <button
-                    type="button"
-                    className="is-primary"
-                    onClick={() => {
-                      setShowResultModal(false)
-                      onOpenChallenge?.()
-                    }}
-                  >
-                    Quitter et voir les défis →
-                  </button>
-                </div>
-              </motion.section>
-            </motion.div>
-          </AnimatePresence>,
-          document.body
-        )
-      : null
+  /* =======================================================
+     MODULE ABSENT
+     ======================================================= */
 
   if (!module) {
     return (
       <section className="quiz-page">
         <div className="quiz-page__empty">
-          <span aria-hidden="true">
-            ⚠️
-          </span>
+          <span aria-hidden="true">⚠️</span>
 
           <h1>Module introuvable</h1>
 
           <p>
-            Aucun module n’a été sélectionné
-            pour afficher ce quiz.
+            Aucun module n’a été sélectionné pour afficher ce quiz.
           </p>
 
-          {typeof onBack ===
-            'function' && (
-            <button
-              type="button"
-              onClick={onBack}
-            >
+          {typeof onBack === 'function' && (
+            <button type="button" onClick={onBack}>
               Retour aux modules
             </button>
           )}
@@ -1123,42 +726,66 @@ function Quiz({
     )
   }
 
-  if (isLoadingQuiz) {
-    return (
-      <section className="quiz-page">
-        <div className="quiz-page__empty quiz-page__loading">
-          <span aria-hidden="true">
-            ⏳
-          </span>
+  /* =======================================================
+     CHARGEMENT
+     ======================================================= */
 
-          <h2>Chargement du quiz…</h2>
+  if (isLoading) {
+    return (
+      <section
+        className="quiz-page"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <div className="quiz-page__empty">
+          <span aria-hidden="true">⏳</span>
+
+          <h2>Chargement du quiz</h2>
+
+          <p>
+            Préparation de votre tentative et des questions...
+          </p>
         </div>
       </section>
     )
   }
 
+  /* =======================================================
+     ERREUR DE CHARGEMENT
+     ======================================================= */
+
   if (loadError) {
     return (
       <section className="quiz-page">
-        <div className="quiz-page__empty quiz-page__load-error">
-          <span aria-hidden="true">
-            ⚠️
-          </span>
+        <nav className="quiz-page__breadcrumb" aria-label="Fil d’Ariane">
+          <button type="button" onClick={onBack}>
+            Formation
+          </button>
+
+          <span>/</span>
+
+          <a href={buildModuleUrl()}>{moduleSlug}</a>
+
+          <span>/</span>
+
+          <strong>Quiz</strong>
+        </nav>
+
+        <div className="quiz-page__empty">
+          <span aria-hidden="true">⚠️</span>
 
           <h2>Impossible de charger le quiz</h2>
 
           <p>{loadError}</p>
 
           <div className="quiz-page__empty-actions">
-            <button
-              type="button"
-              onClick={handleRestart}
-            >
+            <button type="button" onClick={loadQuiz}>
               Réessayer
             </button>
 
             <button
               type="button"
+              className="is-challenge"
               onClick={onOpenLesson}
             >
               Retour à la lecture
@@ -1169,24 +796,36 @@ function Quiz({
     )
   }
 
+  /* =======================================================
+     AUCUNE QUESTION
+     ======================================================= */
+
   if (questions.length === 0) {
     return (
       <section className="quiz-page">
+        <nav className="quiz-page__breadcrumb" aria-label="Fil d’Ariane">
+          <button type="button" onClick={onBack}>
+            Formation
+          </button>
 
+          <span>/</span>
+
+          <a href={buildModuleUrl()}>{moduleSlug}</a>
+
+          <span>/</span>
+
+          <strong>Quiz</strong>
+        </nav>
 
         <header className="quiz-page__header">
           <div>
-            <span className="quiz-page__slug">
-              {moduleSlug}
-            </span>
+            <span className="quiz-page__slug">{moduleSlug}</span>
 
-            <h1>
-              Quiz — {module.titre}
-            </h1>
+            <h1>{quiz?.titre || `Quiz — ${module.titre}`}</h1>
 
             <p>
-              Vérifiez vos connaissances
-              avant de passer aux challenges.
+              Vérifiez vos connaissances avant de passer aux
+              challenges.
             </p>
           </div>
 
@@ -1199,55 +838,27 @@ function Quiz({
           </button>
         </header>
 
-        <div className="quiz-page__tabs">
-          <button
-            type="button"
-            onClick={onOpenLesson}
-          >
-            📖 Lecture
-          </button>
-
-          <button
-            type="button"
-            className="is-active"
-          >
-            ❓ Quiz
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenChallenge}
-          >
-            🏆 Challenges
-          </button>
-        </div>
-
         <div className="quiz-page__empty">
-          <span aria-hidden="true">
-            ❓
-          </span>
+          <span aria-hidden="true">❓</span>
 
           <h2>Aucune question disponible</h2>
 
           <p>
-            Ce quiz ne contient encore aucune
-            question de la part du serveur.
+            Le serveur n’a retourné aucune question pour cette
+            tentative.
           </p>
 
           <div className="quiz-page__empty-actions">
-            <button
-              type="button"
-              onClick={onOpenLesson}
-            >
-              Retour à la lecture
+            <button type="button" onClick={loadQuiz}>
+              Actualiser
             </button>
 
             <button
               type="button"
               className="is-challenge"
-              onClick={onOpenChallenge}
+              onClick={onOpenLesson}
             >
-              Voir les challenges
+              Retour à la lecture
             </button>
           </div>
         </div>
@@ -1255,23 +866,60 @@ function Quiz({
     )
   }
 
+  const currentFeedback = questionFeedback[currentQuestionId]
+
+  const currentIsAnswered = isQuestionAnswered(
+    currentQuestion,
+    currentAnswer
+  )
+
+  const currentIsSaved =
+    getAnswerSignature(currentAnswer) ===
+    savedAnswerSignatures[currentQuestionId]
+
+  /*
+   * Une question est "vérifiée" dès que sa réponse actuelle a été
+   * enregistrée et que le serveur a renvoyé un résultat (correct/faux),
+   * indépendamment du fait que toute la tentative ait été soumise.
+   */
+  const currentHasFeedback =
+    currentIsSaved &&
+    Boolean(currentFeedback) &&
+    typeof currentFeedback.est_correcte === 'boolean'
+
+  const currentCorrectChoiceIds = currentHasFeedback
+    ? getCorrectChoiceIds(currentFeedback)
+    : []
+
+  /* =======================================================
+     AFFICHAGE DU QUIZ
+     ======================================================= */
+
   return (
     <section className="quiz-page">
 
-
       <header className="quiz-page__header">
         <div>
+          <span className="quiz-page__slug">{moduleSlug}</span>
 
-
-          <h1>
-            Quiz — {module.titre}
-          </h1>
+          <h1>{quiz?.titre || `Quiz — ${module.titre}`}</h1>
 
           <p>
-            Répondez à toutes les questions
-            pour valider cette étape du
-            module.
+            Répondez à toutes les questions puis soumettez votre
+            tentative pour obtenir votre score.
           </p>
+
+          <div className="quiz-page__header-meta">
+            <span>
+              ❓ {quiz?.nombre_questions ?? questions.length} questions
+            </span>
+
+            <span>
+              🎯 Score requis : {quiz?.score_de_reussite ?? 0}
+            </span>
+
+            <span>📝 Tentative en cours</span>
+          </div>
         </div>
 
         <button
@@ -1284,374 +932,328 @@ function Quiz({
       </header>
 
       <div className="quiz-page__tabs">
-        <button
-          type="button"
-          onClick={onOpenLesson}
-        >
+        <button type="button" onClick={onOpenLesson}>
           📖 Lecture
         </button>
 
-        <button
-          type="button"
-          className="is-active"
-        >
+        <button type="button" className="is-active">
           ❓ Quiz
         </button>
 
-        <button
-          type="button"
-          onClick={onOpenChallenge}
-        >
+        <button type="button" onClick={onOpenChallenge}>
           🏆 Challenges
         </button>
       </div>
 
+      {isSubmitted && submittedTentative ? (
+        <div className="quiz-page__result-only">
+          <div
+            className={[
+              'quiz-page__result',
+              submittedTentative.est_reussi ? 'is-success' : 'is-failed',
+            ].join(' ')}
+          >
+            <span className="quiz-page__result-icon" aria-hidden="true">
+              {submittedTentative.est_reussi ? '🎉' : '📘'}
+            </span>
+
+            <div className="quiz-page__result-content">
+              <h3>
+                {submittedTentative.est_reussi
+                  ? 'Quiz réussi'
+                  : 'Quiz terminé'}
+              </h3>
+
+              <p>
+                Score : <strong>{submittedTentative.score}</strong>
+              </p>
+
+              <p>
+                Réponses :{' '}
+                <strong>
+                  {submittedTentative.nombre_reponses}/
+                  {submittedTentative.nombre_questions}
+                </strong>
+              </p>
+
+              <p>
+                Points obtenus :{' '}
+                <strong>
+                  {submittedTentative.points_obtenus}/
+                  {submittedTentative.points_total}
+                </strong>
+              </p>
+            </div>
+
+            <div className="quiz-page__result-actions">
+              <button type="button" onClick={handleRestart}>
+                Refaire le quiz
+              </button>
+
+              <button
+                type="button"
+                className="is-challenge"
+                onClick={onOpenChallenge}
+              >
+                Continuer vers les challenges →
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="quiz-page__layout">
         <main className="quiz-page__main">
           <div className="quiz-page__progress-card">
             <div className="quiz-page__progress-info">
               <span>
-                Question{' '}
-                {activeQuestionIndex + 1}
+                Question {activeQuestionIndex + 1}
                 {' sur '}
                 {questions.length}
               </span>
 
-              <strong>
-                {progress}% complété
-              </strong>
+              <strong>{progress}% complété</strong>
             </div>
 
             <div className="quiz-page__progress-track">
               <div
                 className="quiz-page__progress-fill"
-                style={{
-                  width: `${progress}%`,
-                }}
+                style={{ width: `${progress}%` }}
               />
             </div>
           </div>
 
           <article className="quiz-page__question">
-            <div className="quiz-page__question-top">
-              <span className="quiz-page__question-number">
-                {activeQuestionIndex + 1}
-              </span>
-
-              <span className="quiz-page__question-type">
-                {isCurrentShortAnswer
-                  ? 'Réponse courte'
-                  : isMultipleQuestion(
-                        currentQuestion
-                      )
-                    ? 'Plusieurs réponses'
-                    : 'Une seule réponse'}
-              </span>
-            </div>
+            
 
             <h2>
-              {getQuestionText(
-                currentQuestion,
-                activeQuestionIndex
-              )}
+              {getQuestionText(currentQuestion, activeQuestionIndex)}
             </h2>
 
-            {isCurrentShortAnswer ? (
-              <div className="quiz-page__short-answer">
+            {isTextQuestion(currentQuestion) ? (
+              <div className="quiz-page__text-answer">
+                <label htmlFor={`question-${currentQuestionId}`}>
+                  Votre réponse
+                </label>
+
                 <textarea
-                  rows={3}
+                  id={`question-${currentQuestionId}`}
+                  value={currentAnswer.reponse_texte}
+                  rows={6}
                   disabled={
-                    isFinished ||
-                    isSavingCurrent
+                    isSubmitted || isSubmitting || currentHasFeedback
                   }
-                  value={
-                    shortAnswerDrafts[
-                      currentQuestionId
-                    ] ?? ''
-                  }
+                  placeholder="Saisissez votre réponse ici..."
                   onChange={(event) =>
-                    handleShortAnswerChange(
+                    handleTextAnswerChange(
                       currentQuestion,
                       activeQuestionIndex,
                       event.target.value
                     )
                   }
-                  placeholder="Votre réponse…"
                 />
-
-                <button
-                  type="button"
-                  disabled={
-                    isFinished ||
-                    isSavingCurrent ||
-                    !(
-                      shortAnswerDrafts[
-                        currentQuestionId
-                      ] || ''
-                    ).trim()
-                  }
-                  onClick={() =>
-                    handleShortAnswerSubmit(
-                      currentQuestion,
-                      activeQuestionIndex
-                    )
-                  }
-                >
-                  {isSavingCurrent
-                    ? 'Enregistrement…'
-                    : 'Valider la réponse'}
-                </button>
-              </div>
-            ) : currentOptions.length > 0 ? (
-              <div className="quiz-page__options">
-                {currentOptions.map(
-                  (
-                    option,
-                    optionIndex
-                  ) => {
-                    const optionId =
-                      getOptionId(
-                        option,
-                        optionIndex
-                      )
-
-                    const isSelected =
-                      currentAnswers.includes(
-                        optionId
-                      )
-
-                    const inputType =
-                      isMultipleQuestion(
-                        currentQuestion
-                      )
-                        ? 'checkbox'
-                        : 'radio'
-
-                    return (
-                      <label
-                        key={optionId}
-                        className={[
-                          'quiz-page__option',
-                          isSelected
-                            ? 'is-selected'
-                            : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                      >
-                        <input
-                          type={inputType}
-                          name={`question-${currentQuestionId}`}
-                          value={optionId}
-                          checked={isSelected}
-                          disabled={
-                            isFinished ||
-                            isSavingCurrent
-                          }
-                          onChange={() =>
-                            handleSelectOption(
-                              currentQuestion,
-                              activeQuestionIndex,
-                              option,
-                              optionIndex
-                            )
-                          }
-                        />
-
-                        <span className="quiz-page__option-control" />
-
-                        <span className="quiz-page__option-letter">
-                          {String.fromCharCode(
-                            65 + optionIndex
-                          )}
-                        </span>
-
-                        <span className="quiz-page__option-text">
-                          {getOptionText(
-                            option,
-                            optionIndex
-                          )}
-                        </span>
-                      </label>
-                    )
-                  }
-                )}
               </div>
             ) : (
-              <div className="quiz-page__question-error">
-                Cette question ne contient
-                aucune réponse disponible.
+              <div className="quiz-page__options">
+                {currentOptions.map((option, optionIndex) => {
+                  const optionId = getOptionId(option, optionIndex)
+
+                  const isSelected =
+                    currentAnswer.choix_ids.includes(optionId)
+
+                  const isCorrectOption =
+                    currentCorrectChoiceIds.includes(optionId)
+
+                  const inputType = isMultipleQuestion(currentQuestion)
+                    ? 'checkbox'
+                    : 'radio'
+
+                  const feedbackClass = currentHasFeedback
+                    ? isSelected
+                      ? currentFeedback?.est_correcte === true
+                        ? 'is-correct'
+                        : currentFeedback?.est_correcte === false
+                          ? 'is-wrong'
+                          : ''
+                      : isCorrectOption
+                        ? 'is-correct-answer'
+                        : ''
+                    : ''
+
+                  return (
+                    <label
+                      key={optionId}
+                      className={[
+                        'quiz-page__option',
+                        isSelected ? 'is-selected' : '',
+                        feedbackClass,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <input
+                        type={inputType}
+                        name={`question-${currentQuestionId}`}
+                        value={optionId}
+                        checked={isSelected}
+                        disabled={
+                          isSubmitted ||
+                          isSubmitting ||
+                          currentHasFeedback
+                        }
+                        onChange={() =>
+                          handleSelectOption(
+                            currentQuestion,
+                            activeQuestionIndex,
+                            option,
+                            optionIndex
+                          )
+                        }
+                      />
+
+                      <span className="quiz-page__option-control" />
+
+                      <span className="quiz-page__option-letter">
+                        {String.fromCharCode(65 + optionIndex)}
+                      </span>
+
+                      <span className="quiz-page__option-text">
+                        {getOptionText(option, optionIndex)}
+                      </span>
+
+                      {currentHasFeedback && isCorrectOption && !isSelected && (
+                        <span className="quiz-page__option-tag">
+                          Bonne réponse
+                        </span>
+                      )}
+                    </label>
+                  )
+                })}
               </div>
             )}
 
-            {currentResult ? (
+            {/* {!isSubmitted && (
+              <div className="quiz-page__save-status">
+                {savingQuestionId === currentQuestionId ? (
+                  <span className="is-saving">⏳ Enregistrement...</span>
+                ) : currentIsSaved && currentIsAnswered ? (
+                  <span className="is-saved">✓ Réponse enregistrée</span>
+                ) : currentIsAnswered ? (
+                  <span className="is-pending">
+                    • Réponse non enregistrée
+                  </span>
+                ) : (
+                  <span>
+                    Sélectionnez ou écrivez une réponse.
+                  </span>
+                )}
+              </div>
+            )} */}
+
+            {currentHasFeedback && (
               <div
                 className={[
-                  'quiz-page__feedback',
-                  currentResult.estCorrecte
+                  'quiz-page__explanation',
+                  currentFeedback.est_correcte === true
                     ? 'is-correct'
-                    : 'is-incorrect',
+                    : 'is-wrong',
                 ].join(' ')}
               >
                 <strong>
-                  {currentResult.estCorrecte
-                    ? '✅ Bonne réponse'
-                    : '❌ Réponse incorrecte'}
+                  {currentFeedback.est_correcte === true
+                    ? '✓ Bonne réponse'
+                    : '✕ Réponse incorrecte'}
                 </strong>
 
-                {!currentResult.estCorrecte && (
-                  <>
-                    {formatCorrectionAnswer(
-                      currentResult.correction,
-                      currentOptions
-                    ) && (
-                      <p className="quiz-page__feedback-answer">
-                        Bonne réponse :{' '}
-                        <strong>
-                          {formatCorrectionAnswer(
-                            currentResult.correction,
-                            currentOptions
-                          )}
-                        </strong>
-                      </p>
-                    )}
-
-                    {currentResult.explication && (
-                      <p>
-                        {
-                          currentResult.explication
-                        }
-                      </p>
-                    )}
-                  </>
+                {currentFeedback.explication && (
+                  <p>{currentFeedback.explication}</p>
                 )}
-              </div>
-            ) : (
-              isFinished &&
-              getQuestionExplanation(
-                currentQuestion
-              ) && (
-                <div className="quiz-page__explanation">
-                  <strong>Explication</strong>
 
-                  <p>
-                    {getQuestionExplanation(
-                      currentQuestion
-                    )}
-                  </p>
-                </div>
-              )
+                {currentFeedback.est_correcte === false &&
+                  isTextQuestion(currentQuestion) &&
+                  getCorrectAnswerText(currentFeedback) && (
+                    <p className="quiz-page__correction">
+                      <strong>Réponse attendue :</strong>{' '}
+                      {getCorrectAnswerText(currentFeedback)}
+                    </p>
+                  )}
+              </div>
             )}
           </article>
 
-          {saveError && (
-            <div
-              className="quiz-page__error"
-              role="alert"
-            >
-              <span aria-hidden="true">
-                ⚠️
-              </span>
+          {actionError && (
+            <div className="quiz-page__error" role="alert">
+              <span aria-hidden="true">⚠️</span>
 
-              <p>{saveError}</p>
+              <p>{actionError}</p>
 
               <button
                 type="button"
-                onClick={() =>
-                  setSaveError('')
-                }
-                aria-label="Fermer le message"
+                onClick={() => setActionError('')}
+                aria-label="Fermer"
               >
                 ×
               </button>
             </div>
           )}
 
-          <div className="quiz-page__navigation">
-            <button
-              type="button"
-              className="quiz-page__previous"
-              disabled={
-                activeQuestionIndex === 0
-              }
-              onClick={
-                handlePreviousQuestion
-              }
-            >
-              ← Question précédente
-            </button>
-
-            {activeQuestionIndex <
-            questions.length - 1 ? (
+          {!isSubmitted && (
+            <div className="quiz-page__navigation">
               <button
                 type="button"
-                className="quiz-page__next"
+                className="quiz-page__previous"
                 disabled={
-                  !isAnswerFilled(
-                    answers[
-                      currentQuestionId
-                    ]
-                  )
-                }
-                onClick={
-                  handleNextQuestion
-                }
-              >
-                Question suivante →
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="quiz-page__next"
-                disabled={
-                  !allAnswersCompleted ||
-                  isFinished ||
+                  activeQuestionIndex === 0 ||
                   isSubmitting ||
-                  Object.values(savingQuestionIds).some(Boolean)
+                  Boolean(savingQuestionId)
                 }
-                onClick={handleSubmitAttempt}
+                onClick={handlePreviousQuestion}
               >
-                {isFinished
-                  ? '✓ Quiz soumis'
-                  : isSubmitting
-                    ? 'Soumission…'
-                    : allAnswersCompleted
-                      ? 'Soumettre le quiz →'
-                      : 'Répondez à toutes les questions'}
+                ← Question précédente
               </button>
-            )}
-          </div>
 
-          {isFinished && scoreSummary && (
-            <div
-              className={[
-                'quiz-page__result-summary',
-                isSuccess
-                  ? 'is-success'
-                  : 'is-failure',
-              ].join(' ')}
-            >
-              <div>
-                <strong>
-                  {isSuccess
-                    ? '✓ Quiz réussi'
-                    : 'Quiz non réussi'}
-                </strong>
-                <span>
-                  {scoreSummary.percentage}% ·{' '}
-                  {scoreSummary.correct} bonne(s) réponse(s) ·{' '}
-                  {scoreSummary.incorrect} mauvaise(s)
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowResultModal(true)}
-              >
-                Voir le résultat
-              </button>
+              {!currentHasFeedback ? (
+                <button
+                  type="button"
+                  className="quiz-page__next"
+                  disabled={
+                    !currentIsAnswered ||
+                    isSubmitting ||
+                    Boolean(savingQuestionId)
+                  }
+                  onClick={handleCheckAnswer}
+                >
+                  {savingQuestionId
+                    ? 'Vérification...'
+                    : 'Vérifier la réponse'}
+                </button>
+              ) : activeQuestionIndex < questions.length - 1 ? (
+                <button
+                  type="button"
+                  className="quiz-page__next"
+                  disabled={isSubmitting || Boolean(savingQuestionId)}
+                  onClick={handleGoNext}
+                >
+                  Question suivante →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="quiz-page__submit"
+                  disabled={
+                    answeredQuestionsCount !== questions.length ||
+                    isSubmitting ||
+                    Boolean(savingQuestionId)
+                  }
+                  onClick={handleSubmit}
+                >
+                  {isSubmitting
+                    ? 'Notation en cours...'
+                    : 'Soumettre le quiz'}
+                </button>
+              )}
             </div>
           )}
+
         </main>
 
         <aside className="quiz-page__sidebar">
@@ -1666,131 +1268,76 @@ function Quiz({
             </p>
 
             <div className="quiz-page__question-list">
-              {questions.map(
-                (
+              {questions.map((question, questionIndex) => {
+                const questionId = getQuestionId(
                   question,
                   questionIndex
-                ) => {
-                  const questionId =
-                    getQuestionId(
-                      question,
-                      questionIndex
-                    )
+                )
 
-                  const isAnswered =
-                    isAnswerFilled(
-                      answers[questionId]
-                    )
+                const questionAnswer = answers[questionId]
 
-                  const result =
-                    questionResults[questionId]
+                const answered = isQuestionAnswered(
+                  question,
+                  questionAnswer
+                )
 
-                  const hasCorrection =
-                    typeof result?.estCorrecte ===
-                    'boolean'
+                const saved =
+                  answered &&
+                  getAnswerSignature(questionAnswer) ===
+                    savedAnswerSignatures[questionId]
 
-                  const isActive =
-                    activeQuestionIndex ===
-                    questionIndex
+             
+                const feedback = questionFeedback[questionId]
 
-                  return (
-                    <button
-                      key={questionId}
-                      type="button"
-                      className={[
-                        isActive
-                          ? 'is-active'
-                          : '',
-                        hasCorrection &&
-                        result.estCorrecte
-                          ? 'is-correct'
-                          : '',
-                        hasCorrection &&
-                        !result.estCorrecte
-                          ? 'is-incorrect'
-                          : '',
-                        isAnswered &&
-                        !hasCorrection
-                          ? 'is-answered'
-                          : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      onClick={() =>
-                        handleSelectQuestion(
-                          questionIndex
-                        )
-                      }
-                      aria-label={`Aller à la question ${questionIndex + 1}`}
-                    >
-                      {questionIndex + 1}
-                    </button>
-                  )
-                }
-              )}
+                const hasCorrection =
+                  typeof feedback?.est_correcte === 'boolean'
+
+                const active = questionIndex === activeQuestionIndex
+
+                return (
+                  <button
+                    key={questionId}
+                    type="button"
+                    className={[
+                      active ? 'is-active' : '',
+                      hasCorrection && feedback.est_correcte
+                        ? 'is-correct'
+                        : '',
+                      hasCorrection && !feedback.est_correcte
+                        ? 'is-incorrect'
+                        : '',
+                      !hasCorrection && answered ? 'is-answered' : '',
+                      !hasCorrection && saved ? 'is-saved' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => handleSelectQuestion(questionIndex)}
+                    aria-label={`Aller à la question ${questionIndex + 1}`}
+                  >
+                    {questionIndex + 1}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          <div className="quiz-page__sidebar-card quiz-page__history-card">
-            <h3>Mes tentatives</h3>
-
-            {attempts.length > 0 ? (
-              <div className="quiz-page__history-list">
-                {attempts.slice(0, 3).map((attempt, index) => (
-                  <div key={attempt?.id || index}>
-                    <span>Tentative {attempts.length - index}</span>
-                    <strong>{Number(attempt?.score || 0)}%</strong>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>Aucune tentative soumise.</p>
-            )}
-          </div>
-
-          <div className="quiz-page__sidebar-card quiz-page__ranking-card">
-            <h3>Classement</h3>
-
-            {ranking.length > 0 ? (
-              <div className="quiz-page__history-list">
-                {ranking.slice(0, 3).map((entry) => (
-                  <div key={`${entry.rang}-${entry.utilisateur_id}`}>
-                    <span>#{entry.rang} {entry.utilisateur_nom}</span>
-                    <strong>{entry.meilleur_score}%</strong>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>Classement encore vide.</p>
-            )}
-
-            {sideDataError && <small>{sideDataError}</small>}
-          </div>
-
           <div className="quiz-page__sidebar-card quiz-page__sidebar-card--help">
-            <span aria-hidden="true">
-              💡
-            </span>
+            <span aria-hidden="true">💡</span>
 
             <h3>Conseil</h3>
 
             <p>
-              Relisez attentivement chaque
-              question avant de sélectionner
-              votre réponse.
+              Chaque réponse est enregistrée lorsque vous cliquez sur
+              « Enregistrer et continuer ».
             </p>
 
-            <button
-              type="button"
-              onClick={onOpenLesson}
-            >
+            <button type="button" onClick={onOpenLesson}>
               Revoir la leçon
             </button>
           </div>
         </aside>
       </div>
-
-      {resultModal}
+      )}
     </section>
   )
 }
