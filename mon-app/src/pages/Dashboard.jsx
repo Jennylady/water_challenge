@@ -371,24 +371,42 @@ function Dashboard({
   }, [])
 
   const markAllNotificationsAsRead = useCallback(async () => {
+    const readAt = new Date().toISOString()
+
+    // Mise à jour immédiate de l’interface : l’ouverture du panneau signifie
+    // que l’utilisateur vient de consulter toutes ses notifications.
+    setNotifications((current) =>
+      current.map((notification) => ({
+        ...notification,
+        est_lue: true,
+        lue_le: notification.lue_le || readAt,
+      }))
+    )
+
     try {
       await notificationsApi.markAllRead()
-      setNotifications((current) =>
-        current.map((notification) => ({
-          ...notification,
-          est_lue: true,
-          lue_le: notification.lue_le || new Date().toISOString(),
-        }))
-      )
     } catch (requestError) {
       setNotificationsError(
         getApiErrorMessage(
           requestError,
-          'Impossible de marquer toutes les notifications comme lues.'
+          language === 'FR'
+            ? 'Impossible de marquer toutes les notifications comme lues.'
+            : 'Tsy afaka nanamarika ny fampandrenesana rehetra ho voavaky.'
         )
       )
+
+      // On resynchronise avec le serveur si l’écriture a échoué.
+      loadNotifications()
     }
-  }, [])
+  }, [language, loadNotifications])
+
+  const handleOpenNotifications = useCallback(() => {
+    setShowNotifications(true)
+
+    if (unreadNotificationsCount > 0) {
+      markAllNotificationsAsRead()
+    }
+  }, [markAllNotificationsAsRead, unreadNotificationsCount])
 
   const openNotification = useCallback(
     async (notification) => {
@@ -979,7 +997,7 @@ function Dashboard({
                         className="dash-notification-read-all"
                         onClick={markAllNotificationsAsRead}
                       >
-                        Tout lire
+                        {language === 'FR' ? 'Tout marquer comme lu' : 'Mariho ho voavaky avokoa'}
                       </button>
                     )}
 
@@ -998,13 +1016,13 @@ function Dashboard({
                     <div className="dash-notification-error">
                       <p>{notificationsError}</p>
                       <button type="button" onClick={loadNotifications}>
-                        Réessayer
+                        {language === 'FR' ? 'Réessayer' : 'Andramo indray'}
                       </button>
                     </div>
                   )}
 
                   {isLoadingNotifications && notificationItems.length === 0 ? (
-                    <div className="dash-empty">Chargement des notifications…</div>
+                    <div className="dash-empty">{language === 'FR' ? 'Chargement des notifications…' : 'Mampiditra fampandrenesana…'}</div>
                   ) : notificationItems.length > 0 ? (
                     notificationItems.map((notification) => (
                       <button
@@ -1024,7 +1042,7 @@ function Dashboard({
                           <p>{notification.message}</p>
                           {notification.cree_le && (
                             <small>
-                              {new Date(notification.cree_le).toLocaleString('fr-FR')}
+                              {new Date(notification.cree_le).toLocaleString(language === 'FR' ? 'fr-FR' : 'mg-MG')}
                             </small>
                           )}
                         </div>
@@ -1209,13 +1227,13 @@ function Dashboard({
           <button
             type="button"
             className="dash-notification-btn"
-            onClick={() =>
-              setShowNotifications(
-                true
-              )
+            onClick={handleOpenNotifications}
+            title={t.home.notificationsTitle}
+            aria-label={
+              language === 'FR'
+                ? `Notifications non lues : ${unreadNotificationsCount}`
+                : `Fampandrenesana mbola tsy voavaky : ${unreadNotificationsCount}`
             }
-            title="Notifications"
-            aria-label={`Notifications non lues : ${unreadNotificationsCount}`}
           >
             <span
               className="dash-notification-icon"

@@ -1,48 +1,48 @@
 export function getDashboardData(language = 'FR') {
   const FR = {
     logout: 'Déconnexion',
-    waterAmbassador: 'Water Ambassador',
+    waterAmbassador: 'Ambassadeur de l’eau',
     levelBeginner: 'Débutant',
     firstBadge: 'Éco-Geste',
     menu: {
-      dashboard: 'Dashboard',
-      learning: 'Learning',
-      challenges: 'Challenges',
-      submit: 'Submit Activity',
-      activities: 'My Activities',
-      projects: 'Community Projects',
-      community: 'Community',
-      badges: 'Badges & Certificates',
-      profile: 'Profile',
+      dashboard: 'Tableau de bord',
+      learning: 'Formation',
+      challenges: 'Défis',
+      submit: 'Soumettre une activité',
+      activities: 'Mes activités',
+      projects: 'Projets communautaires',
+      community: 'Communauté',
+      badges: 'Insignes et certificats',
+      profile: 'Profil',
     },
     home: {
       kicker: 'Espace ambassadeur',
       title: 'Bienvenue dans Water Challenge',
-      subtitle: 'Apprends, réalise des challenges simples, envoie tes preuves et deviens Ambassadeur de l’Eau dans ta communauté.',
+      subtitle: 'Apprends, réalise des défis simples, envoie tes preuves et deviens Ambassadeur de l’Eau dans ta communauté.',
       progression: 'Progression',
       points: 'Points',
       level: 'Niveau',
-      badges: 'Badges',
+      badges: 'Insignes',
       pending: 'En attente',
       peopleTouched: 'Personnes touchées',
-      continueLearning: 'Continuer Learning',
+      continueLearning: 'Continuer la formation',
       submitProof: 'Envoyer une activité',
       notificationsTitle: 'Notifications',
-      ongoingTitle: 'Challenges en cours',
+      ongoingTitle: 'Défis en cours',
     },
     learning: {
       
-      title: 'Learning Modules',
+      title: 'Modules de formation',
       subtitle: 'Chaque module suit un parcours simple : petite explication, lecture, quiz, challenge, puis soumission de preuve.',
-      read: 'Read',
+      read: 'Lire',
       quiz: 'Quiz',
-      challenge: 'Challenge',
-      submit: 'Submit',
+      challenge: 'Défi',
+      submit: 'Soumettre',
       start: 'Commencer',
     },
     challenges: {
       kicker: 'Actions concrètes',
-      title: 'Tous les challenges',
+      title: 'Tous les défis',
       subtitle: 'Choisis un défi, lis l’objectif et les instructions, puis réalise l’activité dans ta maison, ton école ou ta communauté.',
       objective: 'Objectif',
       difficulty: 'Difficulté',
@@ -53,9 +53,9 @@ export function getDashboardData(language = 'FR') {
     },
     submit: {
       kicker: 'Preuve d’activité',
-      title: 'Submit Activity',
+      title: 'Soumettre une activité',
       subtitle: 'Envoie une preuve claire de ton action : photo, texte, date, lieu et nombre de personnes touchées.',
-      challenge: 'Challenge',
+      challenge: 'Défi',
       titleLabel: 'Titre de l’activité',
       date: 'Date',
       place: 'Lieu',
@@ -69,7 +69,7 @@ export function getDashboardData(language = 'FR') {
     },
     activities: {
       kicker: 'Historique',
-      title: 'My Activities',
+      title: 'Mes activités',
       subtitle: 'Retrouve tes activités envoyées : en attente, validées, refusées ou à corriger.',
       empty: 'Aucune activité envoyée pour le moment.',
       pending: 'En attente',
@@ -79,7 +79,7 @@ export function getDashboardData(language = 'FR') {
     },
     projects: {
       kicker: 'Impact local',
-      title: 'Community Projects',
+      title: 'Projets communautaires',
       subtitle: 'Crée et suis tes projets communautaires autour de l’eau : sensibilisation, nettoyage, protection de sources ou campagne locale.',
       name: 'Nom du projet',
       objective: 'Objectif',
@@ -94,23 +94,23 @@ export function getDashboardData(language = 'FR') {
     },
     community: {
       kicker: 'Partage',
-      title: 'Community',
+      title: 'Communauté',
       subtitle: 'Partage tes expériences, pose des questions et découvre les réalisations des autres ambassadeurs.',
       publish: 'Publier',
       placeholder: 'Partage ton expérience, une question ou une réalisation...',
     },
     badges: {
       kicker: 'Récompenses',
-      title: 'Badges & Certificates',
+      title: 'Badges et certificats',
       subtitle: 'Les badges montrent ta progression. Les certificats peuvent être générés après validation de plusieurs activités.',
-      certificate: 'Certificat Water Ambassador',
-      certificateText: 'Disponible après 10 challenges validés et un projet communautaire complété.',
+      certificate: 'Certificat Ambassadeur de l’eau',
+      certificateText: 'Disponible après 10 défis validés et un projet communautaire terminé.',
       unlocked: 'Obtenu',
       locked: 'Bloqué',
     },
     profile: {
       kicker: 'Compte',
-      title: 'Profile',
+      title: 'Profil',
       subtitle: 'Tes informations personnelles, ton organisation, ta région et tes statistiques principales.',
       personal: 'Informations personnelles',
       organization: 'Organisation',
@@ -131,15 +131,15 @@ export function getDashboardData(language = 'FR') {
     levelBeginner: 'Mpianatra',
     firstBadge: 'Eco-Geste',
     menu: {
-      dashboard: 'Dashboard',
+      dashboard: 'Tabilao lehibe',
       learning: 'Fianarana',
       challenges: 'Fanamby',
-      submit: 'Alefa asa',
-      activities: 'Asako',
-      projects: 'Tetikasa',
-      community: 'Vondrona',
-      badges: 'Badges',
-      profile: 'Mombamomba',
+      submit: 'Mandefa asa',
+      activities: 'Ny asako',
+      projects: 'Tetikasan’ny vondrom-piarahamonina',
+      community: 'Vondrom-piarahamonina',
+      badges: 'Mari-boninahitra sy taratasy fanamarinana',
+      profile: 'Mombamomba ahy',
     },
     home: {
       ...FR.home,
@@ -149,7 +149,7 @@ export function getDashboardData(language = 'FR') {
       progression: 'Fivoarana',
       points: 'Isa',
       level: 'Ambaratonga',
-      badges: 'Badges',
+      badges: 'Insignes',
       pending: 'Miandry',
       peopleTouched: 'Olona voakasika',
       continueLearning: 'Hanohy fianarana',
@@ -164,7 +164,7 @@ export function getDashboardData(language = 'FR') {
   const modules = [
     {
       id: 1,
-      title: language === 'FR' ? 'Water Conservation' : 'Fitsitsiana rano',
+      title: language === 'FR' ? 'Conservation de l’eau' : 'Fitsitsiana rano',
       category: language === 'FR' ? 'Économie d’eau' : 'Fitsitsiana',
       image: 'https://images.unsplash.com/photo-1508873699372-7aeab60b44ab?auto=format&fit=crop&w=700&q=80',
       explanation:
@@ -177,7 +177,7 @@ export function getDashboardData(language = 'FR') {
     },
     {
       id: 2,
-      title: language === 'FR' ? 'Protect Water Sources' : 'Miaro loharano',
+      title: language === 'FR' ? 'Protection des sources d’eau' : 'Miaro loharano',
       category: language === 'FR' ? 'Protection' : 'Fiarovana',
       image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&q=80',
       explanation:
@@ -190,7 +190,7 @@ export function getDashboardData(language = 'FR') {
     },
     {
       id: 3,
-      title: language === 'FR' ? 'Community Awareness' : 'Fanentanana',
+      title: language === 'FR' ? 'Sensibilisation communautaire' : 'Fanentanana',
       category: language === 'FR' ? 'Sensibilisation' : 'Fanentanana',
       image: 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=700&q=80',
       explanation:
@@ -279,7 +279,7 @@ export function getDashboardData(language = 'FR') {
       title: language === 'FR' ? 'Éco-Geste' : 'Eco-Geste',
       icon: '💧',
       unlocked: true,
-      condition: language === 'FR' ? '3 challenges d’économie d’eau' : 'Fanamby fitsitsiana 3',
+      condition: language === 'FR' ? '3 défis d’économie d’eau' : 'Fanamby fitsitsiana 3',
     },
     {
       title: language === 'FR' ? 'Protecteur des Sources' : 'Mpiaro Loharano',
@@ -297,7 +297,7 @@ export function getDashboardData(language = 'FR') {
       title: language === 'FR' ? 'Ambassadeur de l’Eau' : 'Ambasadaoro Rano',
       icon: '🏅',
       unlocked: false,
-      condition: language === 'FR' ? '10 challenges validés' : 'Fanamby 10 voamarina',
+      condition: language === 'FR' ? '10 défis validés' : 'Fanamby 10 voamarina',
     },
   ]
 
@@ -306,7 +306,7 @@ export function getDashboardData(language = 'FR') {
       ? 'Ton activité “Créer une affiche” est prête pour validation.'
       : 'Vonona hohamarinina ny asa “Mamorona afisy”.',
     language === 'FR'
-      ? 'Nouveau module disponible : Protect Water Sources.'
+      ? 'Nouveau module disponible : Protection des sources d’eau.'
       : 'Misy module vaovao : Miaro loharano.',
     language === 'FR'
       ? 'Objectif de la semaine : sensibiliser 10 personnes.'

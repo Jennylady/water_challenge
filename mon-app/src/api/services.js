@@ -60,15 +60,19 @@ export const formationApi = {
       'reponse'
     ),
 
-  submitAttempt: async (tentativeId) =>
-    unwrap(
-      await api.post(
-        `/formation/quiz/tentatives/${encodeURIComponent(
-          tentativeId
-        )}/soumettre/`
-      ),
-      'tentative'
-    ),
+  submitAttempt: async (tentativeId) => {
+    const response = await api.post(
+      `/formation/quiz/tentatives/${encodeURIComponent(
+        tentativeId
+      )}/soumettre/`
+    )
+    const tentative = unwrap(response, 'tentative')
+
+    return {
+      ...tentative,
+      message: response?.data?.message || '',
+    }
+  },
 
   listAttempts: async (moduleSlug) =>
     unwrap(
@@ -92,6 +96,12 @@ export const formationApi = {
 }
 
 export const challengesApi = {
+  popular: async (params = {}) =>
+    unwrap(
+      await api.get('/challenges/defis/populaires/', { params }),
+      'defis'
+    ),
+
   list: async (params = {}) =>
     unwrap(await api.get('/challenges/defis/', { params }), 'defis'),
 

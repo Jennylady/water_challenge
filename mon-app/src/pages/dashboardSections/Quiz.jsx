@@ -4,6 +4,8 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 
 import { getApiErrorMessage } from '../../api/api'
 import { formationApi } from '../../api/services'
@@ -238,6 +240,11 @@ const isAnswerFilled = (value) =>
         value && String(value).trim()
       )
 
+const toFiniteNumber = (value, fallback = 0) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
 // Le champ "correction" renvoyé par l'API a une forme libre (schéma = {}).
 // On essaie plusieurs formes courantes pour en tirer un texte lisible.
 const formatCorrectionAnswer = (
@@ -332,6 +339,7 @@ function Quiz({
     useState('')
 
   const [submission, setSubmission] = useState(null)
+  const [showResultModal, setShowResultModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [attempts, setAttempts] = useState([])
   const [ranking, setRanking] = useState([])
@@ -356,6 +364,7 @@ function Quiz({
     setSavingQuestionIds({})
     setSaveError('')
     setSubmission(null)
+    setShowResultModal(false)
     setActiveQuestionIndex(0)
     hasNotifiedSubmitRef.current = false
 
@@ -567,18 +576,43 @@ function Quiz({
       const submittedResponses = Array.isArray(submission.reponses)
         ? submission.reponses
         : []
-      const correct = submittedResponses.filter(
+
+      const correctFromResponses = submittedResponses.filter(
         (response) => response?.est_correcte === true
       ).length
+      const incorrectFromResponses = submittedResponses.filter(
+        (response) => response?.est_correcte === false
+      ).length
+
+      const total = toFiniteNumber(
+        submission.nombre_questions,
+        questions.length
+      )
+      const answered = toFiniteNumber(
+        submission.nombre_reponses,
+        submittedResponses.length
+      )
+      const correct = toFiniteNumber(
+        submission.nombre_bonnes_reponses,
+        correctFromResponses
+      )
+      const incorrect = toFiniteNumber(
+        submission.nombre_mauvaises_reponses,
+        incorrectFromResponses || Math.max(answered - correct, 0)
+      )
 
       return {
         correct,
-        total:
-          Number(submission.nombre_questions) ||
-          questions.length,
-        percentage: Number(submission.score) || 0,
-        points: Number(submission.points_obtenus) || 0,
-        pointsTotal: Number(submission.points_total) || 0,
+        incorrect,
+        answered,
+        total,
+        percentage: toFiniteNumber(submission.score, 0),
+        successPercentage: toFiniteNumber(
+          submission.score_de_reussite,
+          toFiniteNumber(quiz?.score_de_reussite, 0)
+        ),
+        points: toFiniteNumber(submission.points_obtenus, 0),
+        pointsTotal: toFiniteNumber(submission.points_total, 0),
       }
     }
 
@@ -596,15 +630,20 @@ function Quiz({
     const correct = correctedEntries.filter(
       (result) => result.estCorrecte
     ).length
+    const incorrect = correctedEntries.length - correct
 
     return {
       correct,
-      total: correctedEntries.length,
+      incorrect,
+      answered: correctedEntries.length,
+      total: questions.length || correctedEntries.length,
       percentage: Math.round(
         (correct / correctedEntries.length) * 100
       ),
+      successPercentage: toFiniteNumber(quiz?.score_de_reussite, 0),
     }
-  }, [questionResults, questions.length, submission])
+  }, [questionResults, questions.length, quiz?.score_de_reussite, submission])
+
 
   const isSuccess = submission
     ? Boolean(submission.est_reussi)
@@ -823,7 +862,32 @@ function Quiz({
         quiz.tentative_id
       )
 
+      const submittedResults = {}
+
+      ;(Array.isArray(tentative?.reponses)
+        ? tentative.reponses
+        : []
+      ).forEach((response) => {
+        const responseQuestionId = String(
+          response?.question_id || ''
+        )
+
+        if (!responseQuestionId) return
+
+        submittedResults[responseQuestionId] = {
+          estCorrecte:
+            response?.est_correcte === true,
+          correction: response?.correction,
+          explication: response?.explication,
+        }
+      })
+
+      setQuestionResults((current) => ({
+        ...current,
+        ...submittedResults,
+      }))
       setSubmission(tentative)
+      setShowResultModal(true)
       setQuiz((current) => ({
         ...current,
         statut_tentative: tentative?.statut || 'soumise',
@@ -878,6 +942,7 @@ function Quiz({
   }
 
   const handleRestart = () => {
+    setShowResultModal(false)
     setSubmission(null)
     hasNotifiedSubmitRef.current = false
     setReloadToken(
@@ -889,6 +954,145 @@ function Quiz({
       behavior: 'smooth',
     })
   }
+
+  const resultModal =
+    submission &&
+    scoreSummary &&
+    showResultModal &&
+    typeof document !== 'undefined'
+      ? createPortal(
+          <AnimatePresence>
+            <motion.div
+              className="quiz-result-modal__overlay"
+              role="presentation"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowResultModal(false)}
+            >
+              <motion.section
+                className={[
+                  'quiz-result-modal',
+                  isSuccess
+                    ? 'is-success'
+                    : 'is-failure',
+                ].join(' ')}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="quiz-result-modal-title"
+                initial={{ opacity: 0, y: 28, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.96 }}
+                transition={{ duration: 0.28, ease: 'easeOut' }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="quiz-result-modal__close"
+                  aria-label="Fermer le résultat du quiz"
+                  onClick={() => setShowResultModal(false)}
+                >
+                  ×
+                </button>
+
+                <div className="quiz-result-modal__heading">
+                  <span
+                    className="quiz-result-modal__icon"
+                    aria-hidden="true"
+                  >
+                    {isSuccess ? '🎉' : '💪'}
+                  </span>
+
+                  <div>
+                    <p className="quiz-result-modal__eyebrow">
+                      Résultat de votre tentative
+                    </p>
+
+                    <h2 id="quiz-result-modal-title">
+                      {isSuccess
+                        ? 'Quiz réussi !'
+                        : 'Quiz non réussi'}
+                    </h2>
+
+                    <p>
+                      {submission?.message ||
+                        (isSuccess
+                          ? 'Bravo, vous pouvez maintenant passer aux défis de ce module.'
+                          : 'Le seuil de réussite n’est pas encore atteint. Consultez vos réponses avant de continuer.')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="quiz-result-modal__body">
+                  <div className="quiz-result-modal__score">
+                    <strong>{scoreSummary.percentage}%</strong>
+                    <span>Score obtenu</span>
+                  </div>
+
+                  <div className="quiz-result-modal__stats">
+                    <div>
+                      <span>Points</span>
+                      <strong>
+                        {scoreSummary.points}
+                        {' / '}
+                        {scoreSummary.pointsTotal}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Seuil de réussite</span>
+                      <strong>
+                        {scoreSummary.successPercentage}%
+                      </strong>
+                    </div>
+
+                    <div className="is-correct">
+                      <span>Bonnes réponses</span>
+                      <strong>{scoreSummary.correct}</strong>
+                    </div>
+
+                    <div className="is-incorrect">
+                      <span>Mauvaises réponses</span>
+                      <strong>{scoreSummary.incorrect}</strong>
+                    </div>
+
+                    <div className="is-wide">
+                      <span>Questions répondues</span>
+                      <strong>
+                        {scoreSummary.answered}
+                        {' / '}
+                        {scoreSummary.total}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="quiz-result-modal__actions">
+                  <button
+                    type="button"
+                    className="is-secondary"
+                    onClick={() => setShowResultModal(false)}
+                  >
+                    Consulter mes réponses
+                  </button>
+
+                  <button
+                    type="button"
+                    className="is-primary"
+                    onClick={() => {
+                      setShowResultModal(false)
+                      onOpenChallenge?.()
+                    }}
+                  >
+                    Quitter et voir les défis →
+                  </button>
+                </div>
+              </motion.section>
+            </motion.div>
+          </AnimatePresence>,
+          document.body
+        )
+      : null
 
   if (!module) {
     return (
@@ -1418,113 +1622,34 @@ function Quiz({
             )}
           </div>
 
-          {isFinished && (
+          {isFinished && scoreSummary && (
             <div
               className={[
-                'quiz-page__result',
-                isSuccess === true
+                'quiz-page__result-summary',
+                isSuccess
                   ? 'is-success'
-                  : isSuccess === false
-                    ? 'is-failure'
-                    : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
+                  : 'is-failure',
+              ].join(' ')}
             >
-              <span
-                className="quiz-page__result-icon"
-                aria-hidden="true"
+              <div>
+                <strong>
+                  {isSuccess
+                    ? '✓ Quiz réussi'
+                    : 'Quiz non réussi'}
+                </strong>
+                <span>
+                  {scoreSummary.percentage}% ·{' '}
+                  {scoreSummary.correct} bonne(s) réponse(s) ·{' '}
+                  {scoreSummary.incorrect} mauvaise(s)
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowResultModal(true)}
               >
-                {isSuccess === true
-                  ? '🎉'
-                  : isSuccess === false
-                    ? '💪'
-                    : '✔️'}
-              </span>
-
-              <div className="quiz-page__result-content">
-                <h3>
-                  {isSuccess === true
-                    ? 'Quiz réussi'
-                    : isSuccess === false
-                      ? 'Quiz à revoir'
-                      : 'Quiz terminé'}
-                </h3>
-
-                {scoreSummary ? (
-                  <p>
-                    Vous avez obtenu{' '}
-                    <strong>
-                      {scoreSummary.correct}
-                      /
-                      {scoreSummary.total}
-                    </strong>
-                    , soit{' '}
-                    <strong>
-                      {
-                        scoreSummary.percentage
-                      }
-                      %
-                    </strong>
-                    {Number.isFinite(
-                      Number(
-                        quiz?.score_de_reussite
-                      )
-                    ) && (
-                      <>
-                        {' '}
-                        (seuil de réussite :{' '}
-                        {
-                          quiz.score_de_reussite
-                        }
-                        %)
-                      </>
-                    )}
-                    .
-                  </p>
-                ) : (
-                  <p>
-                    Toutes vos réponses ont été enregistrées.
-                  </p>
-                )}
-
-                {submission && (
-                  <p className="quiz-page__result-points">
-                    Points : <strong>{submission.points_obtenus}</strong>
-                    {' / '}
-                    {submission.points_total}
-                  </p>
-                )}
-              </div>
-
-              <div className="quiz-page__result-actions">
-                <button
-                  type="button"
-                  onClick={handleRestart}
-                >
-                  Refaire le quiz
-                </button>
-
-                {isSuccess === false ? (
-                  <button
-                    type="button"
-                    className="is-lesson"
-                    onClick={onOpenLesson}
-                  >
-                    Relire la leçon
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="is-challenge"
-                    onClick={
-                      onOpenChallenge
-                    }
-                  >
-                    Voir les challenges →
-                  </button>
-                )}
-              </div>
+                Voir le résultat
+              </button>
             </div>
           )}
         </main>
@@ -1557,6 +1682,13 @@ function Quiz({
                       answers[questionId]
                     )
 
+                  const result =
+                    questionResults[questionId]
+
+                  const hasCorrection =
+                    typeof result?.estCorrecte ===
+                    'boolean'
+
                   const isActive =
                     activeQuestionIndex ===
                     questionIndex
@@ -1569,7 +1701,16 @@ function Quiz({
                         isActive
                           ? 'is-active'
                           : '',
-                        isAnswered
+                        hasCorrection &&
+                        result.estCorrecte
+                          ? 'is-correct'
+                          : '',
+                        hasCorrection &&
+                        !result.estCorrecte
+                          ? 'is-incorrect'
+                          : '',
+                        isAnswered &&
+                        !hasCorrection
                           ? 'is-answered'
                           : '',
                       ]
@@ -1648,6 +1789,8 @@ function Quiz({
           </div>
         </aside>
       </div>
+
+      {resultModal}
     </section>
   )
 }

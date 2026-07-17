@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { getMediaUrl } from "../api/api";
+import { challengesApi } from "../api/services";
 import "./LandingPage.css";
 
 import heroFiltrationImage from "../assets/hero-filtration-eau.png";
@@ -17,6 +19,10 @@ function LandingPage({ onNavigate = () => {} }) {
   const [language, setLanguage] = useState("FR");
   const [wordIndex, setWordIndex] = useState(0);
   const [activeSection, setActiveSection] = useState("home");
+  const [popularChallenges, setPopularChallenges] = useState([]);
+  const [isLoadingPopularChallenges, setIsLoadingPopularChallenges] = useState(true);
+  const [popularChallengesError, setPopularChallengesError] = useState("");
+  const [popularChallengeIndex, setPopularChallengeIndex] = useState(0);
 
   const content = {
     FR: {
@@ -53,7 +59,11 @@ function LandingPage({ onNavigate = () => {} }) {
         "Découvre les différents types de challenges pour apprendre à économiser, protéger et valoriser l’eau.",
       challengesTitle: "Challenges populaires",
       challengesDesc:
-        "Des défis simples, progressifs et adaptés au contexte de Madagascar.",
+        "Les défis les plus suivis et réalisés par la communauté Water Challenge.",
+      popularParticipants: "participants",
+      popularNew: "Nouveau",
+      popularLoading: "Actualisation des challenges populaires…",
+      popularFallback: "Les challenges par défaut sont affichés temporairement.",
       reviewTitle: "Témoignages",
       reviewDesc:
         "Les jeunes deviennent acteurs du changement dans leur communauté.",
@@ -105,7 +115,11 @@ function LandingPage({ onNavigate = () => {} }) {
         "Fantaro ireo karazana fanamby hianarana mitsitsy, miaro ary manome lanja ny rano.",
       challengesTitle: "Fanamby malaza",
       challengesDesc:
-        "Fanamby tsotra, miandalana ary mifanaraka amin’ny zava-misy eto Madagasikara.",
+        "Ireo fanamby be mpanaraka sy be mpanao indrindra ao amin’ny Water Challenge.",
+      popularParticipants: "mpandray anjara",
+      popularNew: "Vaovao",
+      popularLoading: "Havaozina ireo fanamby malaza…",
+      popularFallback: "Aseho vonjimaika ireo fanamby mahazatra.",
       reviewTitle: "Fijoroana vavolombelona",
       reviewDesc:
         "Lasa mpitarika fiovana eo amin’ny fiarahamonina ny tanora.",
@@ -167,6 +181,39 @@ function LandingPage({ onNavigate = () => {} }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    setIsLoadingPopularChallenges(true);
+    setPopularChallengesError("");
+
+    challengesApi
+      .popular({ limite: 8 })
+      .then((items) => {
+        if (isCancelled) return;
+        setPopularChallenges(Array.isArray(items) ? items : []);
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        console.error("Impossible de charger les challenges populaires :", error);
+        setPopularChallengesError(
+          error?.response?.data?.erreur ||
+            error?.response?.data?.detail ||
+            error?.message ||
+            "Impossible de charger les challenges populaires."
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingPopularChallenges(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   const categories =
     language === "FR"
       ? [
@@ -222,7 +269,7 @@ function LandingPage({ onNavigate = () => {} }) {
           },
         ];
 
-  const challenges =
+  const fallbackChallenges =
     language === "FR"
       ? [
           {
@@ -276,6 +323,62 @@ function LandingPage({ onNavigate = () => {} }) {
             img: categorySensibiliserImage,
           },
         ];
+
+  const fallbackImages = [
+    heroReparationImage,
+    heroEconomieImage,
+    heroNettoyageImage,
+    categorySensibiliserImage,
+  ];
+
+  const challengeCards = (popularChallenges.length > 0
+    ? popularChallenges
+    : fallbackChallenges
+  ).map((challenge, index) => {
+    const isApiChallenge = Boolean(challenge?.titre || challenge?.points_recompense);
+    const imageFromApi = getMediaUrl(challenge?.image_couverture_url);
+
+    return {
+      id: challenge?.id ?? `${language}-${index}`,
+      title: challenge?.titre || challenge?.title || `Challenge ${index + 1}`,
+      place:
+        challenge?.module_titre ||
+        challenge?.duree_estimee ||
+        challenge?.place ||
+        (language === "FR" ? "Water Challenge" : "Water Challenge"),
+      points: Number(challenge?.points_recompense ?? challenge?.points ?? 0),
+      img: imageFromApi || challenge?.img || fallbackImages[index % fallbackImages.length],
+      participants: Number(challenge?.nombre_participants ?? 0),
+      submissions: Number(challenge?.nombre_soumissions ?? 0),
+      isApiChallenge,
+    };
+  });
+
+  const visibleChallengeCount = Math.min(4, challengeCards.length);
+  const visibleChallenges = Array.from(
+    { length: visibleChallengeCount },
+    (_, offset) =>
+      challengeCards[(popularChallengeIndex + offset) % challengeCards.length]
+  );
+  const canSlidePopularChallenges = challengeCards.length > visibleChallengeCount;
+
+  useEffect(() => {
+    setPopularChallengeIndex(0);
+  }, [language, popularChallenges.length]);
+
+  const showPreviousPopularChallenge = () => {
+    if (!canSlidePopularChallenges) return;
+    setPopularChallengeIndex((current) =>
+      (current - 1 + challengeCards.length) % challengeCards.length
+    );
+  };
+
+  const showNextPopularChallenge = () => {
+    if (!canSlidePopularChallenges) return;
+    setPopularChallengeIndex((current) =>
+      (current + 1) % challengeCards.length
+    );
+  };
 
   const fadeUp = {
     hidden: { opacity: 0, y: 45 },
@@ -567,10 +670,32 @@ function LandingPage({ onNavigate = () => {} }) {
           </div>
 
           <div className="wc-slider-buttons">
-            <button type="button" aria-label="Challenge précédent">←</button>
-            <button type="button" aria-label="Challenge suivant">→</button>
+            <button
+              type="button"
+              aria-label={language === "FR" ? "Challenge précédent" : "Fanamby teo aloha"}
+              onClick={showPreviousPopularChallenge}
+              disabled={!canSlidePopularChallenges}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              aria-label={language === "FR" ? "Challenge suivant" : "Fanamby manaraka"}
+              onClick={showNextPopularChallenge}
+              disabled={!canSlidePopularChallenges}
+            >
+              →
+            </button>
           </div>
         </div>
+
+        {(isLoadingPopularChallenges || popularChallengesError) && (
+          <p className="wc-popular-status" role={popularChallengesError ? "status" : undefined}>
+            {isLoadingPopularChallenges
+              ? t.popularLoading
+              : t.popularFallback}
+          </p>
+        )}
 
         <motion.div
           className="wc-challenge-list"
@@ -579,22 +704,31 @@ function LandingPage({ onNavigate = () => {} }) {
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
-          {challenges.map((challenge) => (
+          {visibleChallenges.map((challenge) => (
             <motion.article
               className="wc-challenge-card"
-              key={challenge.title}
+              key={challenge.id}
               variants={fadeUp}
               whileHover={{ y: -8 }}
             >
               <img src={challenge.img} alt={challenge.title} loading="lazy" />
 
               <div className="wc-card-content">
-                <p>{challenge.place}</p>
+                <div className="wc-card-meta">
+                  <p>{challenge.place}</p>
+                  {challenge.isApiChallenge && (
+                    <span>
+                      {challenge.participants > 0
+                        ? `${challenge.participants} ${t.popularParticipants}`
+                        : t.popularNew}
+                    </span>
+                  )}
+                </div>
                 <h3>{challenge.title}</h3>
 
                 <div className="wc-card-bottom">
                   <strong>{challenge.points} pts</strong>
-                  <button type="button">
+                  <button type="button" onClick={() => onNavigate("login")}>
                     {language === "FR" ? "Voir plus" : "Hijery"}
                   </button>
                 </div>

@@ -677,8 +677,21 @@ textarea {
   background: var(--wc-primary);
 }
 
-.wc-slider-buttons button:hover {
+.wc-slider-buttons button:hover:not(:disabled) {
   transform: translateY(-2px);
+}
+
+.wc-slider-buttons button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.wc-popular-status {
+  margin: -20px 0 18px;
+  color: var(--wc-muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .wc-challenge-list {
@@ -708,7 +721,28 @@ textarea {
   color: var(--wc-muted);
   font-size: 12px;
   font-weight: 800;
-  margin-bottom: 6px;
+  margin: 0;
+}
+
+.wc-card-meta {
+  min-height: 26px;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wc-card-meta span {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--wc-soft-2);
+  color: var(--wc-primary);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 1000;
+  white-space: nowrap;
 }
 
 .wc-card-content h3 {
