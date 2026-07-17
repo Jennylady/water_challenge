@@ -11,7 +11,7 @@ IP_ADDR, PORT = get_server_settings()
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = [IP_ADDR, '127.0.0.1', 'localhost', os.getenv('BACKEND_HOST', '')]
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', os.getenv('BACKEND_HOST', '')]
 ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
