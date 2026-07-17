@@ -1,7 +1,4 @@
-/* =========================================================
-   WATER CHALLENGE — COMMUNITY SECTION
-   Tous les styles dépendent du parent .community-page
-   ========================================================= */
+
 
 .community-page {
   --community-primary: var(--wc-primary, #126bff);
@@ -24,9 +21,6 @@
   font-family: "Nunito", Arial, sans-serif;
 }
 
-/* =========================================================
-   EN-TÊTE
-   ========================================================= */
 
 .community-page > .community-page__header {
   width: 100%;

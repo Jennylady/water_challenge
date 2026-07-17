@@ -295,14 +295,14 @@ textarea {
 
 .dash-section {
   display: grid;
-  gap: 24px;
+  gap: 10px;
 }
 
 .dash-section-heading {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 22px;
+  gap: 10px;
   margin-bottom: 4px;
 
 
@@ -382,7 +382,7 @@ textarea {
 }
 
 .dash-hero-card {
-  padding: 34px;
+  padding: 20px;
   min-height: 190px;
   display: grid;
   grid-template-columns: 1.35fr .65fr;
