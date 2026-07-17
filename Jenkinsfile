@@ -112,19 +112,17 @@ pipeline {
 
         stage('Build Frontend') {
             when {
-                anyOf {
-                    branch 'frontend'
-                }
+                anyOf { branch 'frontend' }
             }
             steps {
                 sh """
-                    set -a
-                    . "$FRONTEND_ENV"
-                    set +a
+                    cp ${FRONTEND_ENV} mon-app/.env.production
 
                     docker build \
-                        -t "$FRONTEND_DOCKER_IMAGE:$DOCKER_TAG" \
+                        -t "${FRONTEND_DOCKER_IMAGE}:${DOCKER_TAG}" \
                         -f mon-app/Dockerfile .
+
+                    rm -f mon-app/.env.production
                 """
             }
         }
