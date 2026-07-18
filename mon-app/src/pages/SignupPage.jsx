@@ -35,7 +35,7 @@ function SignupPage({ onNavigate }) {
 
   const [formData, setFormData] = useState(initialFormData)
 
-  // Non-scout users don't need the location (Faritra / Fivondronana / Diosezy) step
+ 
   const isNonScout = formData.scoutType === 'non-scout'
   const totalSteps = isNonScout ? 2 : 3
 
@@ -65,11 +65,13 @@ function SignupPage({ onNavigate }) {
       mavo: 'Jaune',
       maitso: 'Vert',
       mena: 'Rouge',
+      hafa:"autres"
     },
     MLG: {
       mavo: 'Mavo',
       maitso: 'Maitso',
       mena: 'Mena',
+      hafa:'hafa'
     },
   }
 
@@ -79,14 +81,14 @@ function SignupPage({ onNavigate }) {
       tonia: 'Tonia',
       filoha: 'Filoha',
       beazina: 'Beazina',
-      eleve: 'Élève',
+
     },
     MLG: {
+      beazina: 'Beazina',
       cheftaine: 'Cheftaine',
       tonia: 'Tonia',
       filoha: 'Filoha',
-      beazina: 'Beazina',
-      eleve: 'Mpianatra',
+      
     },
   }
 
@@ -125,8 +127,8 @@ function SignupPage({ onNavigate }) {
       sectionLabel: 'Section (Sampana)',
       positionLabel: 'Position',
 
-      fivondronanaLabel: 'Fivondronana (District)',
-      faritraLabel: 'Faritra (Région)',
+      fivondronanaLabel: 'Fivondronana (Paroisse)',
+      faritraLabel: 'Faritra',
       diosezLabel: 'Diosezy (Diocèse)',
 
       nextBtn: 'Suivant',
@@ -856,7 +858,7 @@ function SignupPage({ onNavigate }) {
                         name="faritra"
                         value={formData.faritra}
                         onChange={handleChange}
-                        placeholder="Ex: Analamanga"
+                        placeholder="Ex: faritra atsimo"
                         required
                         disabled={isLoading}
                       />
@@ -869,7 +871,7 @@ function SignupPage({ onNavigate }) {
                         name="fivondronana"
                         value={formData.fivondronana}
                         onChange={handleChange}
-                        placeholder="Ex: Antananarivo"
+                        placeholder="Ex: Tanambao"
                         required
                         disabled={isLoading}
                       />

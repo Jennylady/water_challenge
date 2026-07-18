@@ -261,11 +261,15 @@
 .form-buttons {
   display: flex;
   gap: 12px;
+  width: 100%;
 }
 
 .btn-primary,
 .btn-secondary {
   flex: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   border: none;
   height: 48px;
   border-radius: 9px;
@@ -274,6 +278,7 @@
   cursor: pointer;
   transition: var(--sp-transition);
   font-family: inherit;
+  white-space: nowrap;
 }
 
 .btn-primary {
@@ -372,12 +377,14 @@
 
   .btn-primary,
   .btn-secondary {
-    height: 44px;
-    font-size: 15px;
+    height: 40px;
+    min-height: 40px;
+    font-size: 17px;
   }
 
   .form-buttons {
     flex-direction: column;
+    gap: 10px;
   }
 }
 
@@ -404,6 +411,13 @@
     width: 38px;
     height: 38px;
     font-size: 18px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    height: 38px;
+    min-height: 38px;
+    font-size: 12px;
   }
 }
 
@@ -590,7 +604,7 @@
 .confirm-email-btn {
   width: 100%;
   /* background-color: red; */
-  
+
 }
 
 @keyframes spSpin {
