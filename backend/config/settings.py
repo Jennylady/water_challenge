@@ -197,3 +197,29 @@ ACCOUNT_ACTIVATION_ENCRYPTION_SECRET = os.getenv("ACCOUNT_ACTIVATION_ENCRYPTION_
 
 CHALLENGES_NOTIFICATION_HANDLER = 'apps.notifications.services.notification_challenge_handler'
 CHALLENGES_REWARD_HANDLER = 'apps.recompenses.services.reward_challenge_handler'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
