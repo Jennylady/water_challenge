@@ -94,6 +94,7 @@ if database_engine == 'mysql':
             'OPTIONS': {
                 'charset': 'utf8mb4',
                 'ssl': {'disabled': True},
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             },
         }
     }
