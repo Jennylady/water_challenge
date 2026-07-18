@@ -27,9 +27,9 @@ def envoyer_email(list_email_to_send: list, template_name: str, data: dict):
         data['site_url'] = os.getenv('SITE_URL', '')
         data['support_email'] = os.getenv('SUPPORT_EMAIL', '')
 
-        objet = data.get('subject', "Water Ambassador")
+        objet = data.get('subject', "Water Challenge")
         html_message = render_to_string(TEMPLATES_EMAIL[template_name], data)
-        email_config = os.getenv('EMAIL_HOST_USER', settings.EMAIL_HOST_USER) or settings.DEFAULT_FROM_EMAIL
+        email_config = settings.DEFAULT_FROM_EMAIL
 
         send_mail(
             objet,
